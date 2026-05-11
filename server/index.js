@@ -294,6 +294,88 @@ Measurements over time: ${JSON.stringify(measurements)}`,
   }
 });
 
+// ─── Apple Health Import (via iOS Shortcuts) ──────────────────────────────────
+
+app.post('/api/health/import', async (req, res) => {
+  try {
+    const { secret, date, sleep } = req.body;
+
+    // Shared-secret auth — set HEALTH_IMPORT_SECRET in Railway env vars
+    if (process.env.HEALTH_IMPORT_SECRET && secret !== process.env.HEALTH_IMPORT_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'date is required (YYYY-MM-DD)' });
+    }
+
+    const result = await pool.query('SELECT state FROM app_state WHERE id = 1');
+    const state = result.rows[0]?.state || {};
+    if (!state.sleep) state.sleep = [];
+
+    if (sleep) {
+      // Derive bedtime / waketime strings from ISO timestamps
+      const bedtime = sleep.sleepStart
+        ? new Date(sleep.sleepStart).toTimeString().slice(0, 5)
+        : null;
+      const waketime = sleep.sleepEnd
+        ? new Date(sleep.sleepEnd).toTimeString().slice(0, 5)
+        : null;
+
+      const durationMins = sleep.hoursSlept
+        ? Math.round(sleep.hoursSlept * 60)
+        : sleep.sleepStart && sleep.sleepEnd
+        ? Math.round((new Date(sleep.sleepEnd) - new Date(sleep.sleepStart)) / 60000)
+        : 0;
+
+      // Mirror calculateSleepScore() from src/utils/scores.js
+      // quality is unknown from Apple Health, so default to 5 for scoring
+      const durationFactor = Math.min(durationMins / 480, 1.1);
+      const sleepScore = Math.round(Math.max(1, Math.min(10, durationFactor * 5 + 5 * 0.5)));
+
+      const entry = {
+        id: `ah-${date}`,
+        date,
+        source: 'apple-health',
+        bedtime,
+        waketime,
+        durationMins,
+        quality: null,           // not captured from Apple Health
+        sleepScore,
+        hrv: sleep.hrv ?? null,
+        restingHeartRate: sleep.restingHeartRate ?? null,
+        deepSleep: sleep.deepSleep ?? null,   // hours
+        remSleep: sleep.remSleep ?? null,     // hours
+        coreSleep: sleep.coreSleep ?? null,   // hours
+        timeInBed: sleep.timeInBed ?? null,   // hours
+        sleepStart: sleep.sleepStart ?? null,
+        sleepEnd: sleep.sleepEnd ?? null,
+        notes: '',
+        importedAt: new Date().toISOString(),
+      };
+
+      // Upsert by date — replace existing Apple Health entry for same date
+      const idx = state.sleep.findIndex(s => s.date === date && s.source === 'apple-health');
+      if (idx >= 0) {
+        state.sleep[idx] = entry;
+      } else {
+        state.sleep.push(entry);
+      }
+    }
+
+    await pool.query(
+      `INSERT INTO app_state (id, state, updated_at) VALUES (1, $1, NOW())
+       ON CONFLICT (id) DO UPDATE SET state = $1, updated_at = NOW()`,
+      [state]
+    );
+
+    res.json({ ok: true, date });
+  } catch (err) {
+    console.error('POST /api/health/import error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Serve React build ────────────────────────────────────────────────────────
 
 app.use(express.static(path.join(__dirname, '../build')));

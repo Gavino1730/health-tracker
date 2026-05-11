@@ -118,11 +118,31 @@ export default function SleepLog() {
           <div className="space-y-2">
             {[...state.sleep].reverse().map(s => (
               <div key={s.id} className="card flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-slate-200">{formatDate(s.date)}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="font-semibold text-slate-200">{formatDate(s.date)}</p>
+                    {s.source === 'apple-health' && (
+                      <span className="text-xs bg-pink-900/50 text-pink-300 border border-pink-700/40 px-1.5 py-0.5 rounded-full shrink-0">
+                        Apple Health
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-slate-400">
-                    {s.bedtime} → {s.waketime} · {minutesToHoursLabel(s.durationMins)} · Quality: {s.quality}/10 · Score: {s.sleepScore}/10
+                    {s.bedtime && s.waketime ? `${s.bedtime} → ${s.waketime} · ` : ''}
+                    {minutesToHoursLabel(s.durationMins)}
+                    {s.quality != null ? ` · Quality: ${s.quality}/10` : ''}
+                    {` · Score: ${s.sleepScore}/10`}
                   </p>
+                  {/* Apple Health extra metrics */}
+                  {s.source === 'apple-health' && (s.hrv || s.restingHeartRate || s.deepSleep || s.remSleep || s.coreSleep) && (
+                    <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap gap-x-3">
+                      {s.hrv != null && <span>HRV: {s.hrv} ms</span>}
+                      {s.restingHeartRate != null && <span>RHR: {s.restingHeartRate} bpm</span>}
+                      {s.deepSleep != null && <span>Deep: {s.deepSleep.toFixed(1)}h</span>}
+                      {s.remSleep != null && <span>REM: {s.remSleep.toFixed(1)}h</span>}
+                      {s.coreSleep != null && <span>Core: {s.coreSleep.toFixed(1)}h</span>}
+                    </p>
+                  )}
                   {s.notes && <p className="text-xs text-slate-500 mt-0.5">{s.notes}</p>}
                 </div>
                 <button onClick={() => handleDelete(s.id)} className="text-red-400 hover:text-red-300 text-sm ml-3 shrink-0">✕</button>

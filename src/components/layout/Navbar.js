@@ -32,7 +32,6 @@ const NAV_GROUPS = [
     items: [
       { to: '/body', label: 'Body', icon: '📏' },
       { to: '/injury', label: 'Injury', icon: '🩹' },
-      { to: '/ski', label: 'Ski Days', icon: '⛷️' },
       { to: '/profile', label: 'Profile', icon: '👤' },
     ],
   },

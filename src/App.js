@@ -14,7 +14,6 @@ import StretchingLibrary from './components/stretching/StretchingLibrary';
 import RecoveryDashboard from './components/recovery/RecoveryDashboard';
 import BodyComposition from './components/body/BodyComposition';
 import InjuryTracker from './components/injury/InjuryTracker';
-import SkiDayLog from './components/ski/SkiDayLog';
 import Profile from './components/profile/Profile';
 
 function App() {
@@ -35,7 +34,6 @@ function App() {
             <Route path="recovery" element={<RecoveryDashboard />} />
             <Route path="body" element={<BodyComposition />} />
             <Route path="injury" element={<InjuryTracker />} />
-            <Route path="ski" element={<SkiDayLog />} />
             <Route path="profile" element={<Profile />} />
           </Route>
         </Routes>

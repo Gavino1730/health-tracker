@@ -15,7 +15,6 @@ const initialState = {
   recovery: [],        // Daily recovery score snapshots
   injuries: [],        // Injury entries
   bodyLogs: [],        // Body composition logs (measurements + photo refs)
-  skiDays: [],         // Ski day logs
   substances: [],      // Alcohol / weed logs
   medications: [],     // Medication definitions
   medicationLogs: [],  // Daily medication dose logs
@@ -58,9 +57,6 @@ export const ACTIONS = {
   ADD_BODY_LOG: 'ADD_BODY_LOG',
   UPDATE_BODY_LOG: 'UPDATE_BODY_LOG',
   DELETE_BODY_LOG: 'DELETE_BODY_LOG',
-  // Ski days
-  ADD_SKI_DAY: 'ADD_SKI_DAY',
-  DELETE_SKI_DAY: 'DELETE_SKI_DAY',
   // Substances
   ADD_SUBSTANCE: 'ADD_SUBSTANCE',
   DELETE_SUBSTANCE: 'DELETE_SUBSTANCE',
@@ -184,12 +180,6 @@ function reducer(state, action) {
       return { ...state, bodyLogs: updateItem(state.bodyLogs, action.payload.id, action.payload) };
     case ACTIONS.DELETE_BODY_LOG:
       return { ...state, bodyLogs: removeItem(state.bodyLogs, action.payload) };
-
-    // Ski Days
-    case ACTIONS.ADD_SKI_DAY:
-      return { ...state, skiDays: addItem(state.skiDays, action.payload) };
-    case ACTIONS.DELETE_SKI_DAY:
-      return { ...state, skiDays: removeItem(state.skiDays, action.payload) };
 
     // Substances
     case ACTIONS.ADD_SUBSTANCE:
