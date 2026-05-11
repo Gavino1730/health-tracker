@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useApp, ACTIONS } from '../../context/AppContext';
 import { isoNow, formatDateTime } from '../../utils/dateUtils';
 import { STRETCHING_ROUTINES } from '../../utils/routineLibrary';
+import { recommendStretch } from '../../services/api';
 
 function RoutinePicker({ onSelect }) {
   return (
     <div>
       <h1 className="section-title">Stretching & Mobility</h1>
-      <p className="text-slate-400 text-sm mb-5">Choose a routine to begin a guided session.</p>
+      <p className="text-slate-400 text-sm mb-5">Or choose a preset routine below.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {STRETCHING_ROUTINES.map(r => (
           <button
@@ -206,9 +207,54 @@ export default function StretchingLibrary() {
   const [selectedRoutine, setSelectedRoutine] = useState(null);
   const [lastSession, setLastSession] = useState(null);
 
+  // AI recommendation state
+  const [aiRec, setAiRec] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [showAllAiEx, setShowAllAiEx] = useState(false);
+
+  const fetchRec = useCallback(async () => {
+    setAiLoading(true);
+    setAiError(null);
+    setAiRec(null);
+    setShowAllAiEx(false);
+    try {
+      const rec = await recommendStretch(state);
+      setAiRec(rec);
+    } catch (err) {
+      setAiError(err.message || 'Could not load recommendation');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [state]);
+
+  useEffect(() => {
+    fetchRec();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function handleSelect(routine) {
     setSelectedRoutine(routine);
     setView('session');
+  }
+
+  function startAiRoutine() {
+    if (!aiRec?.exercises?.length) return;
+    const routine = {
+      id: 'ai-stretch',
+      name: aiRec.routineName,
+      icon: aiRec.routineIcon || '🧘',
+      description: aiRec.reasoning,
+      durationLabel: `~${aiRec.estimatedDurationMins} min`,
+      exercises: aiRec.exercises.map((ex, i) => ({
+        id: `ai-s-${i}`,
+        name: ex.name,
+        duration: ex.duration || null,
+        reps: ex.reps || null,
+        notes: ex.notes || '',
+      })),
+    };
+    handleSelect(routine);
   }
 
   function handleComplete(sessionData) {
@@ -227,6 +273,97 @@ export default function StretchingLibrary() {
 
   return (
     <div>
+      {/* ── AI Recommendation ─────────────────────────────────────────────── */}
+      {aiLoading && (
+        <div className="card mb-5 flex items-center gap-3 text-slate-400">
+          <div className="animate-spin text-xl">🧘</div>
+          <div>
+            <p className="text-sm font-semibold text-slate-300">Finding your best routine for today…</p>
+            <p className="text-xs">Checking recent workouts, soreness, and injuries</p>
+          </div>
+        </div>
+      )}
+
+      {aiError && !aiLoading && (
+        <div className="card mb-5 border border-red-800/40 text-sm text-red-400 flex items-center justify-between">
+          <span>⚠️ {aiError}</span>
+          <button onClick={fetchRec} className="ml-3 underline hover:text-red-300">Retry</button>
+        </div>
+      )}
+
+      {aiRec && !aiLoading && (
+        <div className={`card mb-5 ${aiRec.urgency === 'high' ? 'border border-brand-600/40 bg-brand-900/10' : 'border border-surface-600'}`}>
+          {/* Header */}
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{aiRec.routineIcon || '🧘'}</span>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-brand-400">AI Today's Pick</p>
+                <h2 className="font-extrabold text-slate-100 text-lg leading-tight">{aiRec.routineName}</h2>
+              </div>
+            </div>
+            <button onClick={fetchRec} className="text-xs text-slate-500 hover:text-slate-300 transition-colors shrink-0 ml-2">↻</button>
+          </div>
+
+          {/* Reasoning */}
+          <p className="text-sm text-slate-300 mb-3">{aiRec.reasoning}</p>
+
+          {/* Tags */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {aiRec.urgency && (
+              <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                aiRec.urgency === 'high' ? 'bg-orange-900/50 text-orange-300' :
+                aiRec.urgency === 'moderate' ? 'bg-yellow-900/50 text-yellow-300' :
+                'bg-emerald-900/50 text-emerald-300'
+              }`}>{aiRec.urgency} priority</span>
+            )}
+            {aiRec.estimatedDurationMins > 0 && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-surface-700 text-slate-300">⏱ ~{aiRec.estimatedDurationMins} min</span>
+            )}
+            <span className="text-xs px-2.5 py-1 rounded-full bg-surface-700 text-slate-400">🕐 {aiRec.timing}</span>
+          </div>
+
+          {/* Focus areas */}
+          {aiRec.focusAreas?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {aiRec.focusAreas.map((area, i) => (
+                <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-surface-700 text-slate-400">{area}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Exercise list */}
+          {aiRec.exercises?.length > 0 && (
+            <div className="bg-surface-700 rounded-xl p-3 mb-4">
+              <p className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wide">Exercises</p>
+              <div className="space-y-2">
+                {(showAllAiEx ? aiRec.exercises : aiRec.exercises.slice(0, 5)).map((ex, i) => (
+                  <div key={i}>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-sm font-semibold text-slate-200">{ex.name}</span>
+                      <span className="text-xs text-brand-400">{ex.duration || ex.reps}</span>
+                    </div>
+                    {ex.notes && <p className="text-xs text-slate-500 mt-0.5">{ex.notes}</p>}
+                  </div>
+                ))}
+              </div>
+              {aiRec.exercises.length > 5 && (
+                <button
+                  onClick={() => setShowAllAiEx(v => !v)}
+                  className="text-xs text-brand-400 hover:text-brand-300 mt-2 transition-colors"
+                >
+                  {showAllAiEx ? '▲ Show less' : `▼ Show ${aiRec.exercises.length - 5} more`}
+                </button>
+              )}
+            </div>
+          )}
+
+          <button onClick={startAiRoutine} className="btn-primary w-full py-2.5 text-base font-bold">
+            ▶ Start This Routine
+          </button>
+        </div>
+      )}
+
       <RoutinePicker onSelect={handleSelect} />
 
       {/* History */}

@@ -139,11 +139,8 @@ function MealEntryModal({ open, onClose, onSave }) {
   );
 }
 
-export default function NutritionLog() {
-  const { state, dispatch } = useApp();
-  const [showForm, setShowForm] = useState(false);
-  const [tab, setTab] = useState('log');
-  const [caffeineForm, setCaffeineForm] = useState({
+function CaffeineModal({ open, onClose, onSave }) {
+  const [form, setForm] = useState({
     date: today(),
     time: new Date().toTimeString().slice(0, 5),
     amount: '',
@@ -152,37 +149,88 @@ export default function NutritionLog() {
     notes: '',
   });
 
-  function handleSave(meal) {
-    dispatch({ type: ACTIONS.ADD_MEAL, payload: meal });
-  }
-
-  function handleAddCaffeine(e) {
+  function handleSubmit(e) {
     e.preventDefault();
-    const amount = Number(caffeineForm.amount);
+    const amount = Number(form.amount);
     if (!amount || amount <= 0) return;
-
-    dispatch({
-      type: ACTIONS.ADD_SUBSTANCE,
-      payload: {
-        id: uuidv4(),
-        subType: 'caffeine',
-        date: caffeineForm.date,
-        time: caffeineForm.time,
-        amount,
-        unit: caffeineForm.unit,
-        source: caffeineForm.source,
-        notes: caffeineForm.notes,
-        createdAt: isoNow(),
-      },
-    });
-
-    setCaffeineForm({
+    onSave({ ...form, amount });
+    setForm({
       date: today(),
       time: new Date().toTimeString().slice(0, 5),
       amount: '',
       unit: 'mg',
       source: 'Coffee',
       notes: '',
+    });
+    onClose();
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="☕ Log Caffeine">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Date</label>
+            <input type="date" className="input" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Time</label>
+            <input type="time" className="input" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Amount</label>
+            <input type="number" min="1" className="input" placeholder="e.g. 95" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Unit</label>
+            <select className="input" value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}>
+              <option value="mg">mg</option>
+              <option value="shots">espresso shots</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Source</label>
+            <select className="input" value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))}>
+              {['Coffee', 'Espresso', 'Tea', 'Energy Drink', 'Pre-Workout', 'Soda', 'Other'].map(src => (
+                <option key={src} value={src}>{src}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Notes</label>
+            <input type="text" className="input" placeholder="e.g. morning latte" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          </div>
+        </div>
+        <button type="submit" className="btn-primary w-full">Add Caffeine</button>
+      </form>
+    </Modal>
+  );
+}
+
+export default function NutritionLog() {
+  const { state, dispatch } = useApp();
+  const [showForm, setShowForm] = useState(false);
+  const [showCaffeineForm, setShowCaffeineForm] = useState(false);
+  const [tab, setTab] = useState('log');
+
+  function handleSave(meal) {
+    dispatch({ type: ACTIONS.ADD_MEAL, payload: meal });
+  }
+
+  function handleAddCaffeine(entry) {
+    dispatch({
+      type: ACTIONS.ADD_SUBSTANCE,
+      payload: {
+        id: uuidv4(),
+        subType: 'caffeine',
+        date: entry.date,
+        time: entry.time,
+        amount: entry.amount,
+        unit: entry.unit,
+        source: entry.source,
+        notes: entry.notes,
+        createdAt: isoNow(),
+      },
     });
   }
 
@@ -210,131 +258,54 @@ export default function NutritionLog() {
         {[['log', '🥗 Log'], ['summary', '📊 Weekly']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)} className={`px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${tab === key ? 'bg-brand-600 text-white' : 'bg-surface-700 text-slate-300'}`}>{label}</button>
         ))}
-        <button onClick={() => setShowForm(true)} className="btn-primary ml-auto text-sm py-2">+ Log Meal</button>
+        <button onClick={() => setShowCaffeineForm(true)} className="btn-secondary ml-auto text-sm py-2">+ Log Caffeine</button>
+        <button onClick={() => setShowForm(true)} className="btn-primary text-sm py-2">+ Log Meal</button>
       </div>
 
       {tab === 'log' && (
         <div>
-          <div className="card mb-6">
-            <h2 className="font-bold text-slate-200 mb-3">☕ Caffeine Log</h2>
-            <form onSubmit={handleAddCaffeine} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Date</label>
-                  <input
-                    type="date"
-                    className="input"
-                    value={caffeineForm.date}
-                    onChange={e => setCaffeineForm(f => ({ ...f, date: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label">Time</label>
-                  <input
-                    type="time"
-                    className="input"
-                    value={caffeineForm.time}
-                    onChange={e => setCaffeineForm(f => ({ ...f, time: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label">Amount</label>
-                  <input
-                    type="number"
-                    min="1"
-                    className="input"
-                    placeholder="e.g. 95"
-                    value={caffeineForm.amount}
-                    onChange={e => setCaffeineForm(f => ({ ...f, amount: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label">Unit</label>
-                  <select
-                    className="input"
-                    value={caffeineForm.unit}
-                    onChange={e => setCaffeineForm(f => ({ ...f, unit: e.target.value }))}
-                  >
-                    <option value="mg">mg</option>
-                    <option value="shots">espresso shots</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Source</label>
-                  <select
-                    className="input"
-                    value={caffeineForm.source}
-                    onChange={e => setCaffeineForm(f => ({ ...f, source: e.target.value }))}
-                  >
-                    {['Coffee', 'Espresso', 'Tea', 'Energy Drink', 'Pre-Workout', 'Soda', 'Other'].map(src => (
-                      <option key={src} value={src}>{src}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Notes</label>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="e.g. morning latte"
-                    value={caffeineForm.notes}
-                    onChange={e => setCaffeineForm(f => ({ ...f, notes: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <button type="submit" className="btn-primary w-full">Add Caffeine</button>
-            </form>
-
-            {caffeineEntries.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-surface-700">
-                <h3 className="font-semibold text-slate-200 mb-2">Recent Caffeine</h3>
-                <div className="space-y-2 max-h-52 overflow-auto pr-1">
-                  {caffeineEntries.slice(0, 12).map(entry => (
-                    <div key={entry.id} className="flex items-center justify-between text-sm">
-                      <div className="min-w-0">
-                        <p className="text-slate-200 truncate">
-                          {entry.source} · {entry.amount} {entry.unit}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {formatDate(entry.date)}{entry.time ? ` ${entry.time}` : ''}{entry.notes ? ` · ${entry.notes}` : ''}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => dispatch({ type: ACTIONS.DELETE_SUBSTANCE, payload: entry.id })}
-                        className="text-red-400 hover:text-red-300 ml-3 shrink-0"
-                      >
-                        ✕
-                      </button>
+          {caffeineEntries.length > 0 && (
+            <div className="card mb-6">
+              <h2 className="font-bold text-slate-200 mb-3">☕ Caffeine Log</h2>
+              <div className="space-y-2 max-h-52 overflow-auto pr-1">
+                {caffeineEntries.slice(0, 12).map(entry => (
+                  <div key={entry.id} className="flex items-center justify-between text-sm">
+                    <div className="min-w-0">
+                      <p className="text-slate-200 truncate">
+                        {entry.source} · {entry.amount} {entry.unit}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {formatDate(entry.date)}{entry.time ? ` ${entry.time}` : ''}{entry.notes ? ` · ${entry.notes}` : ''}
+                      </p>
                     </div>
-                  ))}
-                </div>
+                    <button
+                      onClick={() => dispatch({ type: ACTIONS.DELETE_SUBSTANCE, payload: entry.id })}
+                      className="text-red-400 hover:text-red-300 ml-3 shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
               </div>
-            )}
-
-            {Object.keys(caffeineByDate).length > 0 && (
-              <div className="mt-4 pt-4 border-t border-surface-700">
-                <h3 className="font-semibold text-slate-200 mb-2">Daily Caffeine Totals</h3>
-                <div className="space-y-1.5">
-                  {Object.entries(caffeineByDate).slice(0, 7).map(([date, entries]) => {
-                    const totalMg = entries
-                      .filter(e => e.unit === 'mg')
-                      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-                    const shotCount = entries
-                      .filter(e => e.unit === 'shots')
-                      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-                    return (
-                      <div key={date} className="flex items-center justify-between text-xs text-slate-400">
-                        <span>{formatDate(date, 'MMM d')}</span>
-                        <span>
-                          {totalMg > 0 ? `${Math.round(totalMg)} mg` : '0 mg'}{shotCount > 0 ? ` · ${shotCount} shots` : ''}
-                        </span>
-                      </div>
-                    );
-                  })}
+              {Object.keys(caffeineByDate).length > 0 && (
+                <div className="mt-4 pt-4 border-t border-surface-700">
+                  <h3 className="font-semibold text-slate-200 mb-2">Daily Totals</h3>
+                  <div className="space-y-1.5">
+                    {Object.entries(caffeineByDate).slice(0, 7).map(([date, entries]) => {
+                      const totalMg = entries.filter(e => e.unit === 'mg').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+                      const shotCount = entries.filter(e => e.unit === 'shots').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+                      return (
+                        <div key={date} className="flex items-center justify-between text-xs text-slate-400">
+                          <span>{formatDate(date, 'MMM d')}</span>
+                          <span>{totalMg > 0 ? `${Math.round(totalMg)} mg` : '0 mg'}{shotCount > 0 ? ` · ${shotCount} shots` : ''}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {state.meals.length === 0 ? (
             <p className="text-slate-500 text-sm">No meals logged yet.</p>
@@ -429,6 +400,7 @@ export default function NutritionLog() {
         </div>
       )}
 
+      <CaffeineModal open={showCaffeineForm} onClose={() => setShowCaffeineForm(false)} onSave={handleAddCaffeine} />
       <MealEntryModal open={showForm} onClose={() => setShowForm(false)} onSave={handleSave} />
     </div>
   );

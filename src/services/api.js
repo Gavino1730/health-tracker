@@ -64,12 +64,68 @@ export async function askHealthChat(question, context) {
 }
 
 /**
+ * Analyze a body photo with health context for AI body composition assessment.
+ * @param {string} base64Image  – full data URL (data:image/jpeg;base64,...)
+ * @param {object[]} measurements  – body measurement log history
+ * @param {{ checkins:object[], workouts:object[], sleep:object[] }} recentLogs
+ * @returns {{ summary:string, estimatedBodyFat:string, muscleDefinition:string, posture:string, strengths:string[], recommendations:string[], trend:string, confidence:number }}
+ */
+export async function analyzeBodyPhoto(base64Image, measurements = [], recentLogs = {}) {
+  return post('/api/ai/body/analyze', { image: base64Image, measurements, recentLogs });
+}
+
+/**
  * Estimate body composition changes from measurement history.
  * @param {object[]} measurements
  * @returns {{ muscleChangePct:number, fatChangePct:number, trend:string, notes:string }}
  */
 export async function estimateBodyComposition(photoIds, measurements) {
   return post('/api/ai/body/estimate', { measurements });
+}
+
+/**
+ * Get an AI-personalized workout recommendation based on full app state.
+ * @param {object} appState – full context (profile, checkins, sleep, injuries, workouts, stretchSessions)
+ * @returns {{ shouldTrain, trainingType, routineName, routineIcon, timing, reasoning, intensity, estimatedDurationMins, exercises, warnings }}
+ */
+export async function recommendWorkout(appState) {
+  return post('/api/ai/workout/recommend', {
+    profile: appState.profile,
+    checkins: appState.checkins,
+    sleep: appState.sleep,
+    injuries: appState.injuries,
+    workouts: appState.workouts,
+    stretchSessions: appState.stretchSessions,
+    today: new Date().toISOString().slice(0, 10),
+  });
+}
+
+/**
+ * Get an AI-personalized stretching routine recommendation.
+ * @param {object} appState
+ * @returns {{ routineName, routineIcon, timing, reasoning, focusAreas, exercises, estimatedDurationMins, urgency }}
+ */
+export async function recommendStretch(appState) {
+  return post('/api/ai/stretch/recommend', {
+    profile: appState.profile,
+    checkins: appState.checkins,
+    sleep: appState.sleep,
+    injuries: appState.injuries,
+    workouts: appState.workouts,
+    stretchSessions: appState.stretchSessions,
+    today: new Date().toISOString().slice(0, 10),
+  });
+}
+
+/**
+ * Live-adjust a workout session mid-session via chat.
+ * @param {string} message – user's request
+ * @param {object} currentSession – current session with exercises
+ * @param {object} appContext – relevant app state (injuries, profile)
+ * @returns {{ reply, modifySession, modifiedExercises }}
+ */
+export async function adjustWorkoutSession(message, currentSession, appContext) {
+  return post('/api/ai/workout/adjust', { message, currentSession, appContext });
 }
 
 /**

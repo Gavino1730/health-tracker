@@ -4,6 +4,7 @@ import { useApp, ACTIONS } from '../../context/AppContext';
 import { today, isoNow, formatDate } from '../../utils/dateUtils';
 import PhotoCapture from '../shared/PhotoCapture';
 import Modal from '../shared/Modal';
+import { analyzeBodyPhoto } from '../../services/api';
 
 const MEASUREMENTS = [
   { key: 'chest',    label: 'Chest (in)' },
@@ -35,6 +36,13 @@ export default function BodyComposition() {
   const [photoPreviews, setPhotoPreviews] = useState([]);
   const [selectedLog, setSelectedLog] = useState(null);
 
+  // AI Analysis state
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analysisPhoto, setAnalysisPhoto] = useState(null); // { preview: base64 }
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisError, setAnalysisError] = useState(null);
+
   function handlePhoto({ id, preview }) {
     setForm(f => ({ ...f, photoIds: [...f.photoIds, id] }));
     setPhotoPreviews(p => [...p, { id, preview }]);
@@ -55,11 +63,48 @@ export default function BodyComposition() {
     setForm(f => ({ ...f, measurements: { ...f.measurements, [key]: val } }));
   }
 
+  function handleAnalysisPhoto({ preview }) {
+    setAnalysisPhoto({ preview });
+    setAnalysisResult(null);
+    setAnalysisError(null);
+  }
+
+  async function runAnalysis() {
+    if (!analysisPhoto) return;
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    try {
+      const result = await analyzeBodyPhoto(
+        analysisPhoto.preview,
+        state.bodyLogs,
+        {
+          checkins: state.checkins,
+          workouts: state.workouts,
+          sleep: state.sleep,
+        }
+      );
+      setAnalysisResult(result);
+    } catch (err) {
+      setAnalysisError(err.message || 'Analysis failed. Check your API key and try again.');
+    }
+    setAnalysisLoading(false);
+  }
+
+  function closeAnalysis() {
+    setShowAnalysis(false);
+    setAnalysisPhoto(null);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+  }
+
   return (
     <div>
       <h1 className="section-title">Body Composition</h1>
 
-      <button onClick={() => setShowForm(true)} className="btn-primary mb-5">+ Log Measurements</button>
+      <div className="flex gap-3 mb-5">
+        <button onClick={() => setShowForm(true)} className="btn-primary">+ Log Measurements</button>
+        <button onClick={() => setShowAnalysis(true)} className="btn-secondary flex items-center gap-2">🤖 AI Photo Analysis</button>
+      </div>
 
       {/* Logs list */}
       {state.bodyLogs.length === 0 ? (
@@ -196,6 +241,128 @@ export default function BodyComposition() {
           </div>
         </Modal>
       )}
+      {/* AI Body Analysis modal */}
+      <Modal open={showAnalysis} onClose={closeAnalysis} title="🤖 AI Body Analysis">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-400">
+            Take or upload a body photo. The AI will analyze it alongside your measurement history, workouts, sleep, and check-ins.
+          </p>
+
+          {/* Context summary */}
+          <div className="bg-surface-700 rounded-xl p-3 text-xs text-slate-400 flex flex-wrap gap-3">
+            <span>📏 {state.bodyLogs.length} measurement log{state.bodyLogs.length !== 1 ? 's' : ''}</span>
+            <span>🏋️ {state.workouts?.length || 0} workouts</span>
+            <span>😴 {state.sleep?.length || 0} sleep logs</span>
+            <span>📋 {state.checkins?.length || 0} check-ins</span>
+          </div>
+
+          {/* Photo capture */}
+          <div>
+            <label className="label mb-2">Body Photo for Analysis</label>
+            {analysisPhoto && (
+              <div className="mb-3">
+                <img
+                  src={analysisPhoto.preview}
+                  alt="Analysis"
+                  className="w-48 h-48 object-cover rounded-xl border border-surface-600 mx-auto block"
+                />
+                <button
+                  type="button"
+                  onClick={() => { setAnalysisPhoto(null); setAnalysisResult(null); setAnalysisError(null); }}
+                  className="text-xs text-slate-500 hover:text-slate-300 mt-1 block mx-auto"
+                >
+                  Remove photo
+                </button>
+              </div>
+            )}
+            <PhotoCapture onCapture={handleAnalysisPhoto} label={analysisPhoto ? 'Replace Photo' : 'Take / Upload Photo'} />
+            <p className="text-xs text-slate-500 mt-1">Photo is used only for this analysis and not saved to your logs.</p>
+          </div>
+
+          {analysisError && (
+            <p className="text-sm text-red-400 bg-red-900/20 rounded-xl px-3 py-2">{analysisError}</p>
+          )}
+
+          {/* Results */}
+          {analysisResult && (
+            <div className="space-y-3">
+              <div className="bg-surface-700 rounded-xl p-4">
+                <p className="text-sm text-slate-200 leading-relaxed">{analysisResult.summary}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {analysisResult.estimatedBodyFat && (
+                  <div className="bg-surface-700 rounded-xl p-3 text-center">
+                    <p className="text-lg font-bold text-brand-400">{analysisResult.estimatedBodyFat}</p>
+                    <p className="text-xs text-slate-400">Est. Body Fat</p>
+                  </div>
+                )}
+                {analysisResult.muscleDefinition && (
+                  <div className="bg-surface-700 rounded-xl p-3 text-center">
+                    <p className="text-lg font-bold text-slate-100 capitalize">{analysisResult.muscleDefinition}</p>
+                    <p className="text-xs text-slate-400">Muscle Definition</p>
+                  </div>
+                )}
+                {analysisResult.trend && analysisResult.trend !== 'unknown' && (
+                  <div className="bg-surface-700 rounded-xl p-3 text-center col-span-2">
+                    <p className="text-lg font-bold text-slate-100 capitalize">{analysisResult.trend}</p>
+                    <p className="text-xs text-slate-400">Overall Trend</p>
+                  </div>
+                )}
+              </div>
+
+              {analysisResult.posture && (
+                <div>
+                  <p className="label mb-1">Posture Observation</p>
+                  <p className="text-sm text-slate-300 bg-surface-700 rounded-xl px-3 py-2">{analysisResult.posture}</p>
+                </div>
+              )}
+
+              {analysisResult.strengths?.length > 0 && (
+                <div>
+                  <p className="label mb-1">Strengths</p>
+                  <ul className="space-y-1">
+                    {analysisResult.strengths.map((s, i) => (
+                      <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                        <span className="text-green-400 mt-0.5">✓</span>{s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {analysisResult.recommendations?.length > 0 && (
+                <div>
+                  <p className="label mb-1">Recommendations</p>
+                  <ul className="space-y-1">
+                    {analysisResult.recommendations.map((r, i) => (
+                      <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                        <span className="text-brand-400 mt-0.5">→</span>{r}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {analysisResult.confidence !== undefined && (
+                <p className="text-xs text-slate-500 text-right">
+                  AI confidence: {Math.round(analysisResult.confidence * 100)}%
+                </p>
+              )}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={runAnalysis}
+            disabled={!analysisPhoto || analysisLoading}
+            className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {analysisLoading ? 'Analyzing…' : analysisResult ? 'Re-analyze' : 'Analyze'}
+          </button>
+        </div>
+      </Modal>
+
     </div>
   );
 }

@@ -68,7 +68,9 @@ app.put('/api/state', async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO app_state (id, state, updated_at) VALUES (1, $1, NOW())
-       ON CONFLICT (id) DO UPDATE SET state = $1, updated_at = NOW()`,
+       ON CONFLICT (id) DO UPDATE
+       SET state = EXCLUDED.state, updated_at = NOW()
+       WHERE app_state.state IS DISTINCT FROM EXCLUDED.state`,
       [req.body]
     );
     res.json({ ok: true });
@@ -85,7 +87,10 @@ app.post('/api/photos', async (req, res) => {
     const { id, data, meta } = req.body;
     await pool.query(
       `INSERT INTO photos (id, data, meta) VALUES ($1, $2, $3)
-       ON CONFLICT (id) DO UPDATE SET data = $2, meta = $3`,
+       ON CONFLICT (id) DO UPDATE
+       SET data = EXCLUDED.data, meta = EXCLUDED.meta
+       WHERE photos.data IS DISTINCT FROM EXCLUDED.data
+         OR photos.meta IS DISTINCT FROM EXCLUDED.meta`,
       [id, data, meta || {}]
     );
     res.json({ ok: true });
@@ -313,6 +318,62 @@ Context: ${JSON.stringify({
   }
 });
 
+// Analyze a body photo with health context → AI body composition assessment
+app.post('/api/ai/body/analyze', async (req, res) => {
+  if (!requireOpenAI(res)) return;
+  try {
+    const { image, measurements, recentLogs } = req.body;
+    if (!image) return res.status(400).json({ error: 'image is required' });
+
+    const contextText = [
+      measurements?.length
+        ? `Measurement history: ${JSON.stringify(measurements.slice(-10))}`
+        : '',
+      recentLogs?.checkins?.length
+        ? `Recent daily check-ins (last 7): ${JSON.stringify(recentLogs.checkins.slice(-7).map(c => ({ date: c.date, energy: c.energy, soreness: c.soreness, mood: c.mood })))}`
+        : '',
+      recentLogs?.workouts?.length
+        ? `Recent workouts (last 7): ${JSON.stringify(recentLogs.workouts.slice(-7).map(w => ({ date: w.date, type: w.type, duration: w.duration })))}`
+        : '',
+      recentLogs?.sleep?.length
+        ? `Recent sleep (last 7): ${JSON.stringify(recentLogs.sleep.slice(-7).map(s => ({ date: s.date, hours: s.hours, quality: s.quality })))}`
+        : '',
+    ].filter(Boolean).join('\n');
+
+    const result = await askGPT([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: `You are an expert body composition coach and trainer. Analyze this body photo and health context, then return a JSON object with these keys:
+- summary (string, 2-3 sentence overall assessment of what you see in the photo combined with their health data)
+- estimatedBodyFat (string, a rough estimated range like "14-17%" or "20-24%", or "Unable to estimate" if the photo is unclear)
+- muscleDefinition (string: "low" | "moderate" | "high" — based on visible muscle tone)
+- posture (string, 1-2 sentence posture/structural observation)
+- strengths (array of 2-3 short strings, positive physical attributes observed)
+- recommendations (array of 3-5 short actionable strings, specific advice based on both photo and health data)
+- trend (string, only if measurement history is provided: "improving" | "declining" | "stable" | "unknown")
+- confidence (number 0-1, how clearly you can assess from the photo)
+
+Note: This is for personal fitness tracking only. Be constructive and practical.
+${contextText ? `\nHealth context:\n${contextText}` : ''}
+Return ONLY valid JSON, no markdown.`,
+          },
+          {
+            type: 'image_url',
+            image_url: { url: image, detail: 'high' },
+          },
+        ],
+      },
+    ]);
+    res.json(result);
+  } catch (err) {
+    console.error('/api/ai/body/analyze error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Estimate body composition trend from measurements
 app.post('/api/ai/body/estimate', async (req, res) => {
   if (!requireOpenAI(res)) return;
@@ -337,6 +398,162 @@ Measurements over time: ${JSON.stringify(measurements)}`,
     res.json(result);
   } catch (err) {
     console.error('/api/ai/body/estimate error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── AI Workout Recommendation ───────────────────────────────────────────────
+
+app.post('/api/ai/workout/recommend', async (req, res) => {
+  if (!requireOpenAI(res)) return;
+  try {
+    const { profile, checkins, sleep, injuries, workouts, stretchSessions, today: todayStr } = req.body;
+
+    const recentCheckins = (checkins || []).slice(-7);
+    const recentSleep = (sleep || []).slice(-5);
+    const recentWorkouts = (workouts || []).slice(-14).map(w => ({
+      date: w.date, name: w.name, type: w.type, durationMins: w.durationMins,
+    }));
+    const activeInjuries = (injuries || []).filter(i => !i.resolvedAt);
+
+    const result = await askGPT([
+      {
+        role: 'system',
+        content: 'You are an expert personal trainer and health coach. Always respond with valid JSON only.',
+      },
+      {
+        role: 'user',
+        content: `Generate a personalized workout recommendation for today based on this user's health data.
+
+Today is: ${todayStr}
+
+Return a JSON object with these exact keys:
+- shouldTrain (boolean)
+- trainingType (string: "full_session" | "light" | "rest" | "active_recovery")
+- routineName (string, e.g. "Push Day", "Full Body")
+- routineIcon (string, one emoji)
+- timing (string, when to do it e.g. "Best done this morning before meals" or "Rest today — train tomorrow")
+- reasoning (string, 2-3 sentences explaining the recommendation using their actual data)
+- intensity (string: "high" | "moderate" | "low")
+- estimatedDurationMins (number)
+- exercises (array of objects, each with: name, sets (number), reps (string), restSeconds (number), notes (string — include why this rep scheme or any modifications for their situation))
+- warnings (array of strings, exercises/movements to avoid given injuries or soreness)
+
+Choose 5-8 exercises for a full session, 3-4 for light/active recovery, 0 for rest.
+IMPORTANT: Modify exercises around active injuries. Explain modifications in the notes field.
+
+Profile: ${JSON.stringify(profile)}
+Recent check-ins (last 7 days): ${JSON.stringify(recentCheckins)}
+Recent sleep: ${JSON.stringify(recentSleep)}
+Recent workouts: ${JSON.stringify(recentWorkouts)}
+Active injuries: ${JSON.stringify(activeInjuries)}`,
+      },
+    ], { temperature: 0.4 });
+
+    res.json(result);
+  } catch (err) {
+    console.error('/api/ai/workout/recommend error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── AI Stretch Recommendation ────────────────────────────────────────────────
+
+app.post('/api/ai/stretch/recommend', async (req, res) => {
+  if (!requireOpenAI(res)) return;
+  try {
+    const { profile, checkins, sleep, injuries, workouts, stretchSessions, today: todayStr } = req.body;
+
+    const recentCheckins = (checkins || []).slice(-3);
+    const recentSleep = (sleep || []).slice(-2);
+    const recentWorkouts = (workouts || []).slice(-5).map(w => ({ date: w.date, name: w.name, type: w.type }));
+    const activeInjuries = (injuries || []).filter(i => !i.resolvedAt);
+    const recentStretches = (stretchSessions || []).slice(-5).map(s => ({
+      date: s.startedAt?.slice(0, 10), routineName: s.routineName,
+    }));
+
+    const result = await askGPT([
+      {
+        role: 'system',
+        content: 'You are an expert mobility coach and physical therapist. Always respond with valid JSON only.',
+      },
+      {
+        role: 'user',
+        content: `Recommend a personalized stretching/mobility routine for today based on this user's health data.
+
+Today is: ${todayStr}
+
+Return a JSON object with these exact keys:
+- routineName (string, descriptive name for this custom routine)
+- routineIcon (string, one emoji)
+- timing (string, e.g. "Do this now before your workout" or "Best done in the evening after dinner")
+- reasoning (string, 2-3 sentences explaining why this specific routine based on their actual recent data)
+- focusAreas (array of strings, muscle groups being targeted)
+- exercises (array of objects, each with: name (string), duration (string or null e.g. "60s each side"), reps (string or null e.g. "10 slow reps"), notes (string — include coaching cues and why this exercise today))
+- estimatedDurationMins (number)
+- urgency (string: "high" | "moderate" | "low")
+
+Target 6-10 exercises. Focus on muscle groups trained recently to aid recovery.
+Consider active injuries — avoid aggravating them and include mobility work around them.
+
+Profile: ${JSON.stringify(profile)}
+Recent check-ins: ${JSON.stringify(recentCheckins)}
+Recent sleep: ${JSON.stringify(recentSleep)}
+Recent workouts: ${JSON.stringify(recentWorkouts)}
+Recent stretch sessions: ${JSON.stringify(recentStretches)}
+Active injuries: ${JSON.stringify(activeInjuries)}`,
+      },
+    ], { temperature: 0.4 });
+
+    res.json(result);
+  } catch (err) {
+    console.error('/api/ai/stretch/recommend error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Live Workout Session Adjustment ─────────────────────────────────────────
+
+app.post('/api/ai/workout/adjust', async (req, res) => {
+  if (!requireOpenAI(res)) return;
+  try {
+    const { message, currentSession, appContext } = req.body;
+    if (!message || !String(message).trim()) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+
+    const activeInjuries = (appContext?.injuries || []).filter(i => !i.resolvedAt);
+
+    const result = await askGPT([
+      {
+        role: 'system',
+        content: 'You are a personal trainer helping someone mid-workout. Be concise, direct, and encouraging. Always respond with valid JSON only.',
+      },
+      {
+        role: 'user',
+        content: `The user is mid-workout and has a request. Help them adjust their remaining session.
+
+Return a JSON object with these exact keys:
+- reply (string, short conversational response 1-3 sentences — be direct and practical)
+- modifySession (boolean, true if exercises should be changed)
+- modifiedExercises (array or null — if modifySession is true, provide the complete new exercise list for remaining exercises: [{ name, sets (number), reps (string), restSeconds (number), notes (string) }])
+
+Rules:
+- Pain/injury mentioned → remove or replace that movement with a safe alternative, explain in reply
+- "Harder"/"More"/"Increase" → increase sets or reps by 20-30%
+- "Easier"/"Tired"/"Shorter" → reduce sets, lower reps, or remove an exercise
+- Form or technique question → just answer in reply, set modifySession to false
+- Keep the same muscle focus unless explicitly asked to change
+
+Current session: ${JSON.stringify(currentSession)}
+User's active injuries: ${JSON.stringify(activeInjuries)}
+User's message: "${String(message).trim()}"`,
+      },
+    ], { temperature: 0.3 });
+
+    res.json(result);
+  } catch (err) {
+    console.error('/api/ai/workout/adjust error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -7,20 +7,20 @@
     @apply bg-surface-900 text-slate-100 font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* Prevent body rubber-band bounce revealing white; allow scroll within containers */
     overscroll-behavior: none;
-    /* Remove iOS grey tap flash */
     -webkit-tap-highlight-color: transparent;
+    /* Subtle radial glow at top */
+    background-image: radial-gradient(ellipse 80% 40% at 50% 0%, rgba(6, 182, 212, 0.04) 0%, transparent 60%);
   }
   * {
     box-sizing: border-box;
   }
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-surface-800;
+    @apply bg-surface-900;
   }
   ::-webkit-scrollbar-thumb {
     @apply bg-surface-600 rounded-full;
@@ -29,13 +29,22 @@
 
 @layer components {
   .card {
-    @apply bg-surface-800 rounded-2xl p-4 shadow-lg;
+    @apply bg-surface-800 rounded-2xl p-4 shadow-xl border border-white/5;
+    transition: border-color 0.2s ease;
+  }
+  .card:hover {
+    border-color: rgba(6, 182, 212, 0.12);
+  }
+  /* Glowing highlight card — used for vitals/hero sections */
+  .card-glow {
+    @apply bg-surface-800 rounded-2xl p-5 border border-brand-500/20;
+    box-shadow: 0 0 40px rgba(6, 182, 212, 0.07), 0 4px 24px rgba(0, 0, 0, 0.5);
   }
   .btn-primary {
-    @apply bg-brand-500 hover:bg-brand-600 text-white font-semibold py-2 px-4 rounded-xl transition-colors;
-    /* Prevent double-tap zoom; enforce minimum Apple HIG tap target */
+    @apply bg-brand-500 hover:bg-brand-400 text-white font-bold py-2 px-4 rounded-xl transition-all;
     touch-action: manipulation;
     min-height: 44px;
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.25);
   }
   .btn-secondary {
     @apply bg-surface-700 hover:bg-surface-600 text-slate-200 font-semibold py-2 px-4 rounded-xl transition-colors;
@@ -43,23 +52,30 @@
     min-height: 44px;
   }
   .btn-danger {
-    @apply bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-xl transition-colors;
+    @apply bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2 px-4 rounded-xl transition-colors;
     touch-action: manipulation;
     min-height: 44px;
   }
   .input {
     @apply bg-surface-700 border border-surface-600 text-slate-100 rounded-xl px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder-slate-500;
-    /* 16px minimum prevents iOS auto-zoom on focus */
     font-size: 1rem;
     min-height: 44px;
+    transition: border-color 0.2s ease;
+  }
+  .input:focus {
+    border-color: rgba(6, 182, 212, 0.4);
   }
   .label {
-    @apply block text-sm font-semibold text-slate-300 mb-1;
+    @apply block text-sm font-semibold text-slate-400 mb-1;
   }
   .section-title {
     @apply text-xl font-bold text-slate-100 mb-4;
   }
   .badge {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
+  }
+  /* Micro label used throughout dashboard */
+  .micro-label {
+    @apply text-[10px] font-bold uppercase tracking-widest text-slate-500;
   }
 }

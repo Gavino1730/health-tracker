@@ -1,16 +1,12 @@
 import React, { useState } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { useApp, ACTIONS } from '../../context/AppContext';
 import ScoreInput from '../shared/ScoreInput';
 import { today, isoNow, formatDate } from '../../utils/dateUtils';
-
-const CAFFEINE_TYPES = ['Coffee', 'Espresso', 'Cold Brew', 'Energy Drink', 'Pre-workout', 'Tea', 'Other'];
 
 function emptyForm() {
   return {
     energy: null, mood: null, soreness: null, stress: null, clarity: null,
     notes: '',
-    caffeine: [],
   };
 }
 
@@ -26,26 +22,13 @@ export default function DailyCheckin() {
     stress: existing.stress,
     clarity: existing.clarity,
     notes: existing.notes || '',
-    caffeine: existing.caffeine || [],
   } : emptyForm());
 
-  const [caffeineForm, setCaffeineForm] = useState({ type: 'Coffee', time: '', amount: '', unit: 'cups' });
   const [saved, setSaved] = useState(false);
 
   function setScore(field, val) {
     setForm(f => ({ ...f, [field]: val }));
     setSaved(false);
-  }
-
-  function addCaffeine() {
-    if (!caffeineForm.type) return;
-    const entry = { ...caffeineForm, id: uuidv4() };
-    setForm(f => ({ ...f, caffeine: [...f.caffeine, entry] }));
-    setCaffeineForm({ type: 'Coffee', time: '', amount: '', unit: 'cups' });
-  }
-
-  function removeCaffeine(id) {
-    setForm(f => ({ ...f, caffeine: f.caffeine.filter(c => c.id !== id) }));
   }
 
   function handleSave(e) {
@@ -85,44 +68,6 @@ export default function DailyCheckin() {
               <ScoreInput value={form[key]} onChange={v => setScore(key, v)} />
             </div>
           ))}
-        </div>
-
-        {/* Caffeine */}
-        <div className="card">
-          <h2 className="font-bold text-slate-200 mb-3">Caffeine Log</h2>
-          {form.caffeine.length > 0 && (
-            <div className="mb-3 space-y-1">
-              {form.caffeine.map(c => (
-                <div key={c.id} className="flex items-center justify-between bg-surface-700 rounded-lg px-3 py-1.5 text-sm">
-                  <span>{c.type}{c.amount ? ` – ${c.amount} ${c.unit}` : ''}{c.time ? ` @ ${c.time}` : ''}</span>
-                  <button type="button" onClick={() => removeCaffeine(c.id)} className="text-red-400 hover:text-red-300 ml-2">✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <div>
-              <label className="label">Type</label>
-              <select className="input" value={caffeineForm.type} onChange={e => setCaffeineForm(f => ({ ...f, type: e.target.value }))}>
-                {CAFFEINE_TYPES.map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Time</label>
-              <input type="time" className="input" value={caffeineForm.time} onChange={e => setCaffeineForm(f => ({ ...f, time: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Amount</label>
-              <input type="number" min="0" step="0.5" className="input" placeholder="e.g. 2" value={caffeineForm.amount} onChange={e => setCaffeineForm(f => ({ ...f, amount: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Unit</label>
-              <select className="input" value={caffeineForm.unit} onChange={e => setCaffeineForm(f => ({ ...f, unit: e.target.value }))}>
-                {['cups', 'shots', 'ml', 'oz', 'cans'].map(u => <option key={u}>{u}</option>)}
-              </select>
-            </div>
-          </div>
-          <button type="button" onClick={addCaffeine} className="btn-secondary text-sm">+ Add Caffeine Entry</button>
         </div>
 
         {/* Notes */}

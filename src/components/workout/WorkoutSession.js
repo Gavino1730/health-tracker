@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { isoNow } from '../../utils/dateUtils';
+import { adjustWorkoutSession } from '../../services/api';
+import { useApp } from '../../context/AppContext';
 
 export default function WorkoutSession({ session, onComplete, onCancel }) {
+  const { state: appState } = useApp();
+
   // Build sets state from session exercises
   const [sets, setSets] = useState(() =>
     session.exercises.map(ex => ({
@@ -23,6 +27,13 @@ export default function WorkoutSession({ session, onComplete, onCancel }) {
   const [startTime] = useState(new Date());
   const [done, setDone] = useState(false);
   const [summary, setSummary] = useState(null);
+
+  // AI chat state
+  const [showChat, setShowChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
 
   const totalSets = sets.reduce((sum, ex) => sum + ex.setsList.length, 0);
   const completedSets = sets.reduce((sum, ex) => sum + ex.setsList.filter(s => s.completed || s.skipped).length, 0);
@@ -58,8 +69,66 @@ export default function WorkoutSession({ session, onComplete, onCancel }) {
     }
   }
 
-  function finishSession() {
-    const durationMins = Math.round((new Date() - startTime) / 60000);
+  // Scroll chat to bottom on new messages
+  useEffect(() => {
+    if (showChat) chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, showChat]);
+
+  // Apply AI-modified exercises from the current position forward
+  function applyAiModifications(newExercises) {
+    const preserved = sets.slice(0, currentExIdx);
+    const newSetsState = newExercises.map((ex, i) => ({
+      ...ex,
+      id: `ai-adj-${Date.now()}-${i}`,
+      setsList: Array.from({ length: ex.sets }, (_, j) => ({
+        setNum: j + 1,
+        reps: ex.reps,
+        weight: '',
+        notes: ex.notes || '',
+        completed: false,
+        skipped: false,
+      })),
+    }));
+    setSets([...preserved, ...newSetsState]);
+    setCurrentExIdx(preserved.length);
+    setCurrentSetIdx(0);
+  }
+
+  async function handleAiChat(e) {
+    e.preventDefault();
+    const msg = chatInput.trim();
+    if (!msg || chatLoading) return;
+    setChatInput('');
+    setChatMessages(prev => [...prev, { role: 'user', text: msg }]);
+    setChatLoading(true);
+    try {
+      const sessionSummary = {
+        name: session.name,
+        currentExercise: sets[currentExIdx]?.name,
+        remainingExercises: sets.slice(currentExIdx).map(ex => ({
+          name: ex.name,
+          sets: ex.setsList.length,
+          reps: ex.setsList[0]?.reps,
+          notes: ex.notes,
+        })),
+      };
+      const result = await adjustWorkoutSession(msg, sessionSummary, {
+        injuries: appState.injuries,
+        profile: appState.profile,
+      });
+      setChatMessages(prev => [...prev, {
+        role: 'ai',
+        text: result.reply,
+        modifiedExercises: result.modifySession ? result.modifiedExercises : null,
+      }]);
+    } catch (err) {
+      setChatMessages(prev => [...prev, { role: 'ai', text: `Couldn't connect: ${err.message}` }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  function finishSession() {    const durationMins = Math.round((new Date() - startTime) / 60000);
     const sessionData = {
       id: uuidv4(),
       name: session.name,
@@ -213,7 +282,7 @@ export default function WorkoutSession({ session, onComplete, onCancel }) {
       )}
 
       {/* All sets for current exercise */}
-      <div className="card">
+      <div className="card mb-24">
         <h3 className="text-sm font-bold text-slate-400 mb-2">All Sets — {currentEx?.name}</h3>
         <div className="space-y-1.5">
           {currentEx?.setsList.map((s, si) => (
@@ -235,6 +304,114 @@ export default function WorkoutSession({ session, onComplete, onCancel }) {
           ))}
         </div>
       </div>
+
+      {/* ── AI Chat Panel ──────────────────────────────────────────────────── */}
+      {/* Floating button */}
+      {!showChat && (
+        <button
+          onClick={() => setShowChat(true)}
+          className="fixed bottom-5 right-5 z-50 flex items-center gap-2 bg-brand-600 hover:bg-brand-500 text-white font-bold px-4 py-3 rounded-full shadow-xl transition-all"
+        >
+          💬 Ask AI
+          {chatMessages.length > 0 && (
+            <span className="bg-white text-brand-700 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+              {chatMessages.length}
+            </span>
+          )}
+        </button>
+      )}
+
+      {/* Chat drawer */}
+      {showChat && (
+        <div className="fixed inset-x-0 bottom-0 z-50 bg-surface-800 border-t border-surface-600 shadow-2xl flex flex-col" style={{ maxHeight: '60vh' }}>
+          {/* Chat header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-600 shrink-0">
+            <div>
+              <p className="font-bold text-slate-100 text-sm">💬 Live AI Coach</p>
+              <p className="text-xs text-slate-400">Tell me what's up — I'll adjust your session</p>
+            </div>
+            <button onClick={() => setShowChat(false)} className="text-slate-400 hover:text-slate-200 text-xl leading-none">×</button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            {chatMessages.length === 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-slate-500 text-center mb-3">Try asking something like…</p>
+                {[
+                  'My shoulder hurts, swap bench press',
+                  'Make this harder',
+                  'I\'m tired, cut it short',
+                  'What weight should I use?',
+                ].map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setChatInput(s)}
+                    className="w-full text-left text-xs bg-surface-700 hover:bg-surface-600 text-slate-300 px-3 py-2 rounded-xl transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {chatMessages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                  msg.role === 'user'
+                    ? 'bg-brand-600 text-white rounded-br-sm'
+                    : 'bg-surface-700 text-slate-200 rounded-bl-sm'
+                }`}>
+                  <p>{msg.text}</p>
+                  {msg.modifiedExercises?.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-surface-600">
+                      <p className="text-xs font-bold text-brand-300 mb-1.5">Updated plan:</p>
+                      {msg.modifiedExercises.map((ex, j) => (
+                        <p key={j} className="text-xs text-slate-300">• {ex.name} — {ex.sets}×{ex.reps}</p>
+                      ))}
+                      <button
+                        onClick={() => applyAiModifications(msg.modifiedExercises)}
+                        className="mt-2 w-full bg-brand-500 hover:bg-brand-400 text-white text-xs font-bold py-1.5 rounded-xl transition-colors"
+                      >
+                        ✓ Apply Changes
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="bg-surface-700 text-slate-400 text-sm rounded-2xl rounded-bl-sm px-3 py-2">
+                  <span className="animate-pulse">Thinking…</span>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          <form onSubmit={handleAiChat} className="px-4 py-3 border-t border-surface-600 flex gap-2 shrink-0">
+            <input
+              type="text"
+              className="input flex-1 text-sm"
+              placeholder="e.g. my knee hurts, make it harder…"
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              disabled={chatLoading}
+              autoFocus
+            />
+            <button
+              type="submit"
+              disabled={!chatInput.trim() || chatLoading}
+              className="btn-primary px-4 py-2 text-sm shrink-0 disabled:opacity-40"
+            >
+              Send
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

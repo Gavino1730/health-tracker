@@ -5,6 +5,7 @@ const API = '';
 
 // Debounce handle — avoid hammering the DB on rapid dispatches
 let saveTimer = null;
+let lastSerializedState = null;
 
 export async function loadState() {
   try {
@@ -12,6 +13,7 @@ export async function loadState() {
     if (!res.ok) throw new Error('Server error');
     const data = await res.json();
     if (data && Object.keys(data).length > 0) {
+      try { lastSerializedState = JSON.stringify(data); } catch {}
       // Update local cache with fresh server data
       try { localStorage.setItem('healthTrackerState', JSON.stringify(data)); } catch {}
       return data;
@@ -29,8 +31,21 @@ export async function loadState() {
 }
 
 export function saveState(state) {
+  let serialized;
+  try {
+    serialized = JSON.stringify(state);
+  } catch {
+    return;
+  }
+
+  if (serialized === lastSerializedState) {
+    return;
+  }
+
+  lastSerializedState = serialized;
+
   // Write to localStorage immediately for offline resilience
-  try { localStorage.setItem('healthTrackerState', JSON.stringify(state)); } catch {}
+  try { localStorage.setItem('healthTrackerState', serialized); } catch {}
 
   // Debounce server sync: wait 1.5s after last dispatch before writing to DB
   clearTimeout(saveTimer);
@@ -38,7 +53,7 @@ export function saveState(state) {
     fetch(`${API}/api/state`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(state),
+      body: serialized,
     }).catch(() => {}); // silently ignore — localStorage cache will reconcile on next load
   }, 1500);
 }
