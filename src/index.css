@@ -7,6 +7,10 @@
     @apply bg-surface-900 text-slate-100 font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Prevent body rubber-band bounce revealing white; allow scroll within containers */
+    overscroll-behavior: none;
+    /* Remove iOS grey tap flash */
+    -webkit-tap-highlight-color: transparent;
   }
   * {
     box-sizing: border-box;
@@ -29,15 +33,25 @@
   }
   .btn-primary {
     @apply bg-brand-500 hover:bg-brand-600 text-white font-semibold py-2 px-4 rounded-xl transition-colors;
+    /* Prevent double-tap zoom; enforce minimum Apple HIG tap target */
+    touch-action: manipulation;
+    min-height: 44px;
   }
   .btn-secondary {
     @apply bg-surface-700 hover:bg-surface-600 text-slate-200 font-semibold py-2 px-4 rounded-xl transition-colors;
+    touch-action: manipulation;
+    min-height: 44px;
   }
   .btn-danger {
     @apply bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-xl transition-colors;
+    touch-action: manipulation;
+    min-height: 44px;
   }
   .input {
     @apply bg-surface-700 border border-surface-600 text-slate-100 rounded-xl px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder-slate-500;
+    /* 16px minimum prevents iOS auto-zoom on focus */
+    font-size: 1rem;
+    min-height: 44px;
   }
   .label {
     @apply block text-sm font-semibold text-slate-300 mb-1;

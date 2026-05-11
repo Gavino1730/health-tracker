@@ -1,62 +1,78 @@
-import { openDB } from 'idb';
+// In production, API is same-origin. In dev, CRA proxy forwards /api → localhost:3001.
+const API = '';
 
-const DB_NAME = 'health-tracker-photos';
-const DB_VERSION = 1;
-const PHOTO_STORE = 'photos';
+// ─── App State ────────────────────────────────────────────────────────────────
 
-let dbPromise = null;
+// Debounce handle — avoid hammering the DB on rapid dispatches
+let saveTimer = null;
 
-function getDB() {
-  if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains(PHOTO_STORE)) {
-          db.createObjectStore(PHOTO_STORE, { keyPath: 'id' });
-        }
-      },
-    });
+export async function loadState() {
+  try {
+    const res = await fetch(`${API}/api/state`);
+    if (!res.ok) throw new Error('Server error');
+    const data = await res.json();
+    if (data && Object.keys(data).length > 0) {
+      // Update local cache with fresh server data
+      try { localStorage.setItem('healthTrackerState', JSON.stringify(data)); } catch {}
+      return data;
+    }
+    return null;
+  } catch {
+    // Server unreachable — fall back to local cache so the app still works offline
+    try {
+      const s = localStorage.getItem('healthTrackerState');
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
   }
-  return dbPromise;
 }
 
+export function saveState(state) {
+  // Write to localStorage immediately for offline resilience
+  try { localStorage.setItem('healthTrackerState', JSON.stringify(state)); } catch {}
+
+  // Debounce server sync: wait 1.5s after last dispatch before writing to DB
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    fetch(`${API}/api/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state),
+    }).catch(() => {}); // silently ignore — localStorage cache will reconcile on next load
+  }, 1500);
+}
+
+// ─── Photos ───────────────────────────────────────────────────────────────────
+
 export async function savePhoto(id, base64Data, meta = {}) {
-  const db = await getDB();
-  await db.put(PHOTO_STORE, { id, data: base64Data, createdAt: new Date().toISOString(), ...meta });
+  await fetch(`${API}/api/photos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, data: base64Data, meta }),
+  });
   return id;
 }
 
 export async function getPhoto(id) {
-  const db = await getDB();
-  return db.get(PHOTO_STORE, id);
-}
-
-export async function deletePhoto(id) {
-  const db = await getDB();
-  return db.delete(PHOTO_STORE, id);
-}
-
-export async function getAllPhotos() {
-  const db = await getDB();
-  return db.getAll(PHOTO_STORE);
-}
-
-// ─── localStorage helpers ────────────────────────────────────────────────────
-
-const LS_KEY = 'healthTrackerState';
-
-export function loadState() {
   try {
-    const serialized = localStorage.getItem(LS_KEY);
-    return serialized ? JSON.parse(serialized) : null;
+    const res = await fetch(`${API}/api/photos/${id}`);
+    if (!res.ok) return null;
+    return res.json();
   } catch {
     return null;
   }
 }
 
-export function saveState(state) {
+export async function deletePhoto(id) {
+  await fetch(`${API}/api/photos/${id}`, { method: 'DELETE' }).catch(() => {});
+}
+
+export async function getAllPhotos() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    const res = await fetch(`${API}/api/photos`);
+    return res.ok ? res.json() : [];
   } catch {
-    // storage quota exceeded – silently fail
+    return [];
   }
 }

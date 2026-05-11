@@ -77,8 +77,11 @@ export default function Navbar() {
         </nav>
       </aside>
 
-      {/* ── Mobile bottom nav (scrollable, 5 visible + scroll) ────────── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-800 border-t border-surface-700 flex overflow-x-auto no-scrollbar">
+      {/* ── Mobile bottom nav (scrollable) ────────────────────────────── */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-800/95 backdrop-blur-md border-t border-surface-700 flex overflow-x-auto no-scrollbar"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         {ALL_NAV.map(item => {
           const isActive =
             item.to === '/'
@@ -88,11 +91,12 @@ export default function Navbar() {
             <NavLink
               key={item.to}
               to={item.to}
-              className={`flex flex-col items-center justify-center gap-0.5 min-w-[60px] py-2 px-1 text-[10px] font-semibold transition-colors ${
+              className={`flex flex-col items-center justify-center gap-0.5 min-w-[62px] min-h-[52px] py-2 px-1 text-[10px] font-semibold transition-colors touch-none select-none ${
                 isActive ? 'text-brand-400' : 'text-slate-500'
               }`}
+              style={{ touchAction: 'manipulation' }}
             >
-              <span className="text-xl leading-none">{item.icon}</span>
+              <span className="text-[22px] leading-none">{item.icon}</span>
               <span className="whitespace-nowrap">{item.label}</span>
             </NavLink>
           );

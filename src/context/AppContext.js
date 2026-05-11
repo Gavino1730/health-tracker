@@ -222,12 +222,11 @@ const AppContext = createContext(null);
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  // Load persisted state on mount
+  // Load persisted state from server on mount (falls back to localStorage if offline)
   useEffect(() => {
-    const saved = loadState();
-    if (saved) {
-      dispatch({ type: ACTIONS.LOAD_STATE, payload: saved });
-    }
+    loadState().then(saved => {
+      if (saved) dispatch({ type: ACTIONS.LOAD_STATE, payload: saved });
+    });
   }, []);
 
   // Persist on every state change
