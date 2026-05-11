@@ -3,8 +3,17 @@ import { v4 as uuidv4 } from 'uuid';
 import { useApp, ACTIONS } from '../../context/AppContext';
 import { today, isoNow, formatDateTime, groupByDate } from '../../utils/dateUtils';
 
-const QUICK_AMOUNTS = [250, 350, 500, 750, 1000];
-const DAILY_GOAL_ML = 2500;
+// Water is stored internally as ml, displayed as oz throughout the UI.
+// 1 oz = 29.5735 ml
+const ML_PER_OZ = 29.5735;
+const ozToMl = oz => Math.round(oz * ML_PER_OZ);
+const mlToOz = ml => (ml / ML_PER_OZ).toFixed(1);
+
+// Water bottles: 24 oz, 32 oz, 48 oz
+const QUICK_AMOUNTS_OZ = [24, 32, 48];
+const QUICK_LABEL = { 24: '24 oz', 32: '32 oz', 48: '48 oz' };
+const DAILY_GOAL_OZ = 64; // ~8 cups
+const DAILY_GOAL_ML = ozToMl(DAILY_GOAL_OZ);
 
 export default function WaterTracker() {
   const { state, dispatch } = useApp();
@@ -15,11 +24,11 @@ export default function WaterTracker() {
   const todayTotal = todayEntries.reduce((sum, w) => sum + w.amount, 0);
   const pct = Math.min((todayTotal / DAILY_GOAL_ML) * 100, 100);
 
-  function addWater(amount) {
-    if (!amount || amount <= 0) return;
+  function addWater(amountOz) {
+    if (!amountOz || amountOz <= 0) return;
     dispatch({
       type: ACTIONS.ADD_WATER,
-      payload: { id: uuidv4(), amount: Number(amount), createdAt: isoNow(), date: todayStr },
+      payload: { id: uuidv4(), amount: ozToMl(Number(amountOz)), createdAt: isoNow(), date: todayStr },
     });
   }
 
@@ -39,7 +48,7 @@ export default function WaterTracker() {
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-bold text-slate-200">Today</h2>
-          <span className="text-sm text-slate-400">Goal: {DAILY_GOAL_ML / 1000}L</span>
+          <span className="text-sm text-slate-400">Goal: {DAILY_GOAL_OZ} oz</span>
         </div>
         <div className="relative h-5 bg-surface-700 rounded-full overflow-hidden mb-2">
           <div
@@ -48,8 +57,8 @@ export default function WaterTracker() {
           />
         </div>
         <div className="flex items-baseline gap-1">
-          <span className="text-3xl font-extrabold text-brand-400">{(todayTotal / 1000).toFixed(2)}</span>
-          <span className="text-slate-400">/ {DAILY_GOAL_ML / 1000} L</span>
+          <span className="text-3xl font-extrabold text-brand-400">{mlToOz(todayTotal)}</span>
+          <span className="text-slate-400">/ {DAILY_GOAL_OZ} oz</span>
           <span className="ml-auto text-sm text-slate-400">{Math.round(pct)}%</span>
         </div>
       </div>
@@ -58,9 +67,9 @@ export default function WaterTracker() {
       <div className="card mb-6">
         <h2 className="font-semibold text-slate-200 mb-3">Quick Add</h2>
         <div className="flex flex-wrap gap-2 mb-4">
-          {QUICK_AMOUNTS.map(amt => (
-            <button key={amt} onClick={() => addWater(amt)} className="btn-secondary text-sm">
-              +{amt >= 1000 ? `${amt / 1000}L` : `${amt}ml`}
+          {QUICK_AMOUNTS_OZ.map(oz => (
+            <button key={oz} onClick={() => addWater(oz)} className="btn-secondary text-sm">
+              +{QUICK_LABEL[oz]}
             </button>
           ))}
         </div>
@@ -69,7 +78,7 @@ export default function WaterTracker() {
             type="number"
             min="1"
             className="input"
-            placeholder="Custom ml"
+            placeholder="Custom oz"
             value={custom}
             onChange={e => setCustom(e.target.value)}
           />
@@ -85,7 +94,7 @@ export default function WaterTracker() {
             {[...todayEntries].reverse().map(w => (
               <div key={w.id} className="flex items-center justify-between text-sm">
                 <span className="text-slate-400">{formatDateTime(w.createdAt)}</span>
-                <span className="font-semibold text-brand-300">{w.amount >= 1000 ? `${w.amount / 1000}L` : `${w.amount}ml`}</span>
+                <span className="font-semibold text-brand-300">{mlToOz(w.amount)} oz</span>
                 <button onClick={() => dispatch({ type: ACTIONS.DELETE_WATER, payload: w.id })} className="text-red-400 hover:text-red-300 ml-2">✕</button>
               </div>
             ))}
@@ -106,7 +115,7 @@ export default function WaterTracker() {
                 <div className="flex-1 h-2 bg-surface-700 rounded-full overflow-hidden">
                   <div className="h-full bg-brand-500 rounded-full" style={{ width: `${dayPct}%` }} />
                 </div>
-                <span className="text-sm font-semibold text-slate-300 w-14 text-right">{(total / 1000).toFixed(2)}L</span>
+                <span className="text-sm font-semibold text-slate-300 w-16 text-right">{mlToOz(total)} oz</span>
               </div>
             );
           })}

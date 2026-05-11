@@ -6,14 +6,14 @@ import PhotoCapture from '../shared/PhotoCapture';
 import Modal from '../shared/Modal';
 
 const MEASUREMENTS = [
-  { key: 'chest',   label: 'Chest (cm)' },
-  { key: 'waist',   label: 'Waist (cm)' },
-  { key: 'hips',    label: 'Hips (cm)' },
-  { key: 'thighs',  label: 'Thighs (cm)' },
-  { key: 'calves',  label: 'Calves (cm)' },
-  { key: 'biceps',  label: 'Biceps (cm)' },
-  { key: 'forearms',label: 'Forearms (cm)' },
-  { key: 'neck',    label: 'Neck (cm)' },
+  { key: 'chest',    label: 'Chest (in)' },
+  { key: 'waist',    label: 'Waist (in)' },
+  { key: 'hips',     label: 'Hips (in)' },
+  { key: 'thighs',   label: 'Thighs (in)' },
+  { key: 'calves',   label: 'Calves (in)' },
+  { key: 'biceps',   label: 'Biceps (in)' },
+  { key: 'forearms', label: 'Forearms (in)' },
+  { key: 'neck',     label: 'Neck (in)' },
 ];
 
 function emptyForm() {
@@ -72,14 +72,14 @@ export default function BodyComposition() {
                 <div>
                   <p className="font-bold text-slate-200">{formatDate(log.date)}</p>
                   <div className="flex gap-4 mt-1 text-sm text-slate-400">
-                    {log.weight && <span>⚖️ {log.weight} kg</span>}
+                    {log.weight && <span>⚖️ {log.weight} lbs</span>}
                     {log.bodyFatPct && <span>📊 {log.bodyFatPct}% BF</span>}
                     {log.photoIds?.length > 0 && <span>📷 {log.photoIds.length} photo{log.photoIds.length > 1 ? 's' : ''}</span>}
                   </div>
                   {Object.keys(log.measurements || {}).length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {Object.entries(log.measurements).filter(([,v]) => v).map(([k, v]) => (
-                        <span key={k} className="badge bg-surface-700 text-slate-300">{k}: {v}cm</span>
+                        <span key={k} className="badge bg-surface-700 text-slate-300">{k}: {v}"</span>
                       ))}
                     </div>
                   )}
@@ -128,12 +128,12 @@ export default function BodyComposition() {
               <input type="date" className="input" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
             </div>
             <div>
-              <label className="label">Weight (kg)</label>
-              <input type="number" step="0.1" className="input" placeholder="e.g. 80.5" value={form.weight} onChange={e => setForm(f => ({ ...f, weight: e.target.value }))} />
+              <label className="label">Weight (lbs)</label>
+              <input type="number" step="0.1" className="input" placeholder="e.g. 175" value={form.weight} onChange={e => setForm(f => ({ ...f, weight: e.target.value }))} />
             </div>
             <div>
-              <label className="label">Height (cm)</label>
-              <input type="number" step="0.5" className="input" placeholder="e.g. 178" value={form.height} onChange={e => setForm(f => ({ ...f, height: e.target.value }))} />
+              <label className="label">Height (in)</label>
+              <input type="number" step="0.25" className="input" placeholder="e.g. 70" value={form.height} onChange={e => setForm(f => ({ ...f, height: e.target.value }))} />
             </div>
             <div>
               <label className="label">Body Fat %</label>
@@ -179,15 +179,15 @@ export default function BodyComposition() {
         <Modal open={!!selectedLog} onClose={() => setSelectedLog(null)} title={`Log – ${formatDate(selectedLog.date)}`}>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
-              {selectedLog.weight && <div className="bg-surface-700 rounded-xl p-3 text-center"><p className="text-xl font-bold text-slate-100">{selectedLog.weight}</p><p className="text-xs text-slate-400">kg</p></div>}
+              {selectedLog.weight && <div className="bg-surface-700 rounded-xl p-3 text-center"><p className="text-xl font-bold text-slate-100">{selectedLog.weight}</p><p className="text-xs text-slate-400">lbs</p></div>}
               {selectedLog.bodyFatPct && <div className="bg-surface-700 rounded-xl p-3 text-center"><p className="text-xl font-bold text-slate-100">{selectedLog.bodyFatPct}%</p><p className="text-xs text-slate-400">Body Fat</p></div>}
-              {selectedLog.height && <div className="bg-surface-700 rounded-xl p-3 text-center"><p className="text-xl font-bold text-slate-100">{selectedLog.height}</p><p className="text-xs text-slate-400">cm</p></div>}
+              {selectedLog.height && <div className="bg-surface-700 rounded-xl p-3 text-center"><p className="text-xl font-bold text-slate-100">{Math.floor(selectedLog.height/12)}'{Math.round(selectedLog.height%12)}"</p><p className="text-xs text-slate-400">Height</p></div>}
             </div>
             {Object.keys(selectedLog.measurements || {}).length > 0 && (
               <div className="grid grid-cols-2 gap-1">
                 {Object.entries(selectedLog.measurements).filter(([,v]) => v).map(([k, v]) => (
                   <div key={k} className="flex justify-between text-sm text-slate-400 bg-surface-700 rounded-lg px-3 py-1.5">
-                    <span className="capitalize">{k}</span><span className="font-semibold text-slate-200">{v} cm</span>
+                    <span className="capitalize">{k}</span><span className="font-semibold text-slate-200">{v}"</span>
                   </div>
                 ))}
               </div>

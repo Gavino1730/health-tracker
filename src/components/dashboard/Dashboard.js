@@ -88,7 +88,7 @@ export default function Dashboard() {
         <MetricCard label="Recovery" value={displayRecovery} unit="/100" color={displayRecovery !== null ? recoveryColor(displayRecovery) : 'text-slate-500'} to="/recovery" />
         <MetricCard label="Sleep" value={sleepScore} unit="/10" color={sleepScore !== null ? scoreColor(sleepScore) : 'text-slate-500'} to="/sleep" />
         <MetricCard label="Energy" value={todayCheckin?.energy} unit="/10" color={todayCheckin?.energy ? scoreColor(todayCheckin.energy) : 'text-slate-500'} to="/checkin" />
-        <MetricCard label="Water" value={todayWater ? `${(todayWater / 1000).toFixed(1)}L` : null} color="text-brand-400" to="/water" />
+        <MetricCard label="Water" value={todayWater ? `${(todayWater / 29.5735).toFixed(0)}oz` : null} color="text-brand-400" to="/water" />
       </div>
 
       {/* Quick stats row */}
