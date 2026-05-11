@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useApp, ACTIONS } from '../../context/AppContext';
 import { today, isoNow, formatDateTime, groupByDate } from '../../utils/dateUtils';
@@ -12,17 +12,23 @@ const mlToOz = ml => (ml / ML_PER_OZ).toFixed(1);
 // Water bottles: 24 oz, 32 oz, 48 oz
 const QUICK_AMOUNTS_OZ = [24, 32, 48];
 const QUICK_LABEL = { 24: '24 oz', 32: '32 oz', 48: '48 oz' };
-const DAILY_GOAL_OZ = 64; // ~8 cups
-const DAILY_GOAL_ML = ozToMl(DAILY_GOAL_OZ);
+const DEFAULT_DAILY_GOAL_OZ = 64; // ~8 cups
 
 export default function WaterTracker() {
   const { state, dispatch } = useApp();
   const [custom, setCustom] = useState('');
+  const [goalInput, setGoalInput] = useState(String(state.waterGoalOz || DEFAULT_DAILY_GOAL_OZ));
   const todayStr = today();
+  const dailyGoalOz = state.waterGoalOz || DEFAULT_DAILY_GOAL_OZ;
+  const dailyGoalMl = ozToMl(dailyGoalOz);
+
+  useEffect(() => {
+    setGoalInput(String(dailyGoalOz));
+  }, [dailyGoalOz]);
 
   const todayEntries = state.water.filter(w => w.createdAt?.startsWith(todayStr));
   const todayTotal = todayEntries.reduce((sum, w) => sum + w.amount, 0);
-  const pct = Math.min((todayTotal / DAILY_GOAL_ML) * 100, 100);
+  const pct = Math.min((todayTotal / dailyGoalMl) * 100, 100);
 
   function addWater(amountOz) {
     if (!amountOz || amountOz <= 0) return;
@@ -38,6 +44,13 @@ export default function WaterTracker() {
     setCustom('');
   }
 
+  function handleGoalSave(e) {
+    e.preventDefault();
+    const nextGoal = Number(goalInput);
+    if (!nextGoal || nextGoal <= 0) return;
+    dispatch({ type: ACTIONS.UPDATE_WATER_GOAL, payload: nextGoal });
+  }
+
   const grouped = groupByDate([...state.water].reverse(), 'date');
 
   return (
@@ -48,8 +61,20 @@ export default function WaterTracker() {
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-bold text-slate-200">Today</h2>
-          <span className="text-sm text-slate-400">Goal: {DAILY_GOAL_OZ} oz</span>
+          <span className="text-sm text-slate-400">Goal: {dailyGoalOz} oz</span>
         </div>
+        <form onSubmit={handleGoalSave} className="flex items-center gap-2 mb-3">
+          <label className="text-xs text-slate-400">Edit Goal</label>
+          <input
+            type="number"
+            min="1"
+            className="input h-9 text-sm"
+            value={goalInput}
+            onChange={e => setGoalInput(e.target.value)}
+            aria-label="Daily water goal in ounces"
+          />
+          <button type="submit" className="btn-secondary text-sm shrink-0">Save Goal</button>
+        </form>
         <div className="relative h-5 bg-surface-700 rounded-full overflow-hidden mb-2">
           <div
             className="absolute left-0 top-0 h-full bg-brand-500 rounded-full transition-all duration-500"
@@ -58,7 +83,7 @@ export default function WaterTracker() {
         </div>
         <div className="flex items-baseline gap-1">
           <span className="text-3xl font-extrabold text-brand-400">{mlToOz(todayTotal)}</span>
-          <span className="text-slate-400">/ {DAILY_GOAL_OZ} oz</span>
+          <span className="text-slate-400">/ {dailyGoalOz} oz</span>
           <span className="ml-auto text-sm text-slate-400">{Math.round(pct)}%</span>
         </div>
       </div>
@@ -108,7 +133,7 @@ export default function WaterTracker() {
         <div className="space-y-2">
           {Object.entries(grouped).slice(0, 14).map(([date, entries]) => {
             const total = entries.reduce((s, e) => s + e.amount, 0);
-            const dayPct = Math.min((total / DAILY_GOAL_ML) * 100, 100);
+            const dayPct = Math.min((total / dailyGoalMl) * 100, 100);
             return (
               <div key={date} className="card flex items-center gap-3">
                 <span className="text-slate-400 text-sm w-24 shrink-0">{date}</span>

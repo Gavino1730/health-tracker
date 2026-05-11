@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { today, formatDate, last7Days } from '../../utils/dateUtils';
@@ -37,21 +37,48 @@ export default function Dashboard() {
   // Pattern detection
   const [patterns, setPatterns] = useState(null);
   const [patternsLoading, setPatternsLoading] = useState(false);
+  const [patternsError, setPatternsError] = useState('');
+
+  const patternPayload = useMemo(() => ({
+    checkins: state.checkins,
+    sleep: state.sleep,
+    workouts: state.workouts,
+    nutrition: state.meals,
+    substances: state.substances,
+  }), [state.checkins, state.sleep, state.workouts, state.meals, state.substances]);
+
+  const hasPatternData =
+    (patternPayload.checkins?.length || 0) +
+    (patternPayload.sleep?.length || 0) +
+    (patternPayload.workouts?.length || 0) +
+    (patternPayload.nutrition?.length || 0) +
+    (patternPayload.substances?.length || 0) >= 3;
 
   async function loadPatterns() {
+    if (!hasPatternData) {
+      setPatterns(null);
+      setPatternsError('');
+      return;
+    }
+
     setPatternsLoading(true);
+    setPatternsError('');
     try {
-      const result = await detectPatterns({
-        checkins: state.checkins,
-        sleep: state.sleep,
-        workouts: state.workouts,
-        nutrition: state.meals,
-        substances: state.substances,
-      });
-      setPatterns(result.correlations);
-    } catch {}
+      const result = await detectPatterns(patternPayload);
+      setPatterns(result?.correlations || []);
+    } catch (err) {
+      setPatternsError(err.message || 'Could not analyze patterns right now.');
+    }
     setPatternsLoading(false);
   }
+
+  // Auto-detect patterns whenever relevant logs change.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadPatterns();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [patternPayload]);
 
   // Chart data – last 7 days
   const days = last7Days();
@@ -200,10 +227,16 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-slate-200">🔍 Pattern Detection</h2>
           <button onClick={loadPatterns} disabled={patternsLoading} className="btn-secondary text-xs py-1 px-3">
-            {patternsLoading ? 'Analyzing...' : 'Detect Patterns'}
+            {patternsLoading ? 'Analyzing...' : 'Refresh'}
           </button>
         </div>
-        {patterns ? (
+        {patternsLoading && !patterns && (
+          <p className="text-sm text-slate-400">Analyzing your data automatically...</p>
+        )}
+        {!patternsLoading && patternsError && (
+          <p className="text-sm text-red-400">{patternsError}</p>
+        )}
+        {!patternsLoading && !patternsError && patterns && patterns.length > 0 ? (
           <div className="space-y-3">
             {patterns.map((p, i) => (
               <div key={i} className="flex items-start gap-3 p-3 bg-surface-700 rounded-xl">
@@ -218,8 +251,10 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+        ) : !patternsLoading && !patternsError && hasPatternData ? (
+          <p className="text-sm text-slate-500">No strong patterns detected yet. Keep logging for clearer trend detection.</p>
         ) : (
-          <p className="text-sm text-slate-500">Click "Detect Patterns" to analyze correlations across your health data (sleep vs energy, workouts vs soreness, caffeine vs sleep, etc.).</p>
+          <p className="text-sm text-slate-500">Add a bit more data and pattern detection will run automatically (sleep vs energy, workouts vs soreness, caffeine vs sleep, etc.).</p>
         )}
       </div>
     </div>

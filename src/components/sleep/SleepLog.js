@@ -5,6 +5,7 @@ import ScoreInput from '../shared/ScoreInput';
 import { today, isoNow, formatDate, minutesToHoursLabel } from '../../utils/dateUtils';
 import { calculateSleepScore } from '../../utils/scores';
 import TrendChart from '../shared/TrendChart';
+import PhotoCapture from '../shared/PhotoCapture';
 
 export default function SleepLog() {
   const { state, dispatch } = useApp();
@@ -14,6 +15,13 @@ export default function SleepLog() {
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState(today());
   const [saved, setSaved] = useState(false);
+  const [photoIds, setPhotoIds] = useState([]);
+  const [photoPreviews, setPhotoPreviews] = useState([]);
+
+  function handlePhotoCapture({ id, preview }) {
+    setPhotoIds(prev => [...prev, id]);
+    setPhotoPreviews(prev => [...prev, { id, preview }]);
+  }
 
   function getDuration() {
     if (!bedtime || !waketime) return 0;
@@ -37,11 +45,13 @@ export default function SleepLog() {
       durationMins,
       quality: quality || 5,
       notes,
+      photoIds,
       sleepScore: calculateSleepScore({ durationMins, quality: quality || 5 }),
       createdAt: isoNow(),
     };
     dispatch({ type: ACTIONS.ADD_SLEEP, payload: entry });
     setBedtime(''); setWaketime(''); setQuality(null); setNotes(''); setDate(today());
+    setPhotoIds([]); setPhotoPreviews([]);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -94,6 +104,16 @@ export default function SleepLog() {
           <label className="label">Notes</label>
           <textarea className="input" rows={2} placeholder="e.g. woke up twice, vivid dreams..." value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
+        <div>
+          <label className="label">Sleep Screenshot (optional)</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {photoPreviews.map(p => (
+              <img key={p.id} src={p.preview} alt="sleep screenshot preview" className="w-20 h-20 object-cover rounded-xl border border-surface-600" />
+            ))}
+          </div>
+          <PhotoCapture onCapture={handlePhotoCapture} label="Add Apple Watch Screenshot" />
+          <p className="text-xs text-slate-500 mt-1">Screenshots are stored locally on your device only.</p>
+        </div>
         <button type="submit" className="btn-primary w-full">Save Sleep</button>
         {saved && <p className="text-emerald-400 text-sm text-center">✓ Saved!</p>}
       </form>
@@ -118,30 +138,13 @@ export default function SleepLog() {
           <div className="space-y-2">
             {[...state.sleep].reverse().map(s => (
               <div key={s.id} className="card flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className="font-semibold text-slate-200">{formatDate(s.date)}</p>
-                    {s.source === 'apple-health' && (
-                      <span className="text-xs bg-pink-900/50 text-pink-300 border border-pink-700/40 px-1.5 py-0.5 rounded-full shrink-0">
-                        Apple Health
-                      </span>
-                    )}
-                  </div>
+                <div>
+                  <p className="font-semibold text-slate-200">{formatDate(s.date)}</p>
                   <p className="text-sm text-slate-400">
-                    {s.bedtime && s.waketime ? `${s.bedtime} → ${s.waketime} · ` : ''}
-                    {minutesToHoursLabel(s.durationMins)}
-                    {s.quality != null ? ` · Quality: ${s.quality}/10` : ''}
-                    {` · Score: ${s.sleepScore}/10`}
+                    {s.bedtime} → {s.waketime} · {minutesToHoursLabel(s.durationMins)} · Quality: {s.quality}/10 · Score: {s.sleepScore}/10
                   </p>
-                  {/* Apple Health extra metrics */}
-                  {s.source === 'apple-health' && (s.hrv || s.restingHeartRate || s.deepSleep || s.remSleep || s.coreSleep) && (
-                    <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap gap-x-3">
-                      {s.hrv != null && <span>HRV: {s.hrv} ms</span>}
-                      {s.restingHeartRate != null && <span>RHR: {s.restingHeartRate} bpm</span>}
-                      {s.deepSleep != null && <span>Deep: {s.deepSleep.toFixed(1)}h</span>}
-                      {s.remSleep != null && <span>REM: {s.remSleep.toFixed(1)}h</span>}
-                      {s.coreSleep != null && <span>Core: {s.coreSleep.toFixed(1)}h</span>}
-                    </p>
+                  {s.photoIds?.length > 0 && (
+                    <p className="text-xs text-slate-500 mt-0.5">📷 {s.photoIds.length} screenshot{s.photoIds.length > 1 ? 's' : ''}</p>
                   )}
                   {s.notes && <p className="text-xs text-slate-500 mt-0.5">{s.notes}</p>}
                 </div>

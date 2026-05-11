@@ -16,15 +16,34 @@ function MealEntryModal({ open, onClose, onSave }) {
   const [date, setDate] = useState(today());
   const [time, setTime] = useState(new Date().toTimeString().slice(0, 5));
 
-  async function handleAnalyze() {
-    if (!photo) return;
+  function buildAutoDescription(result) {
+    const foods = Array.isArray(result?.foods)
+      ? result.foods.filter(Boolean).map(item => String(item).trim()).filter(Boolean)
+      : [];
+    const foodsLine = foods.length ? `What I ate: ${foods.join(', ')}` : '';
+    const detailLine = result?.description ? `Details: ${result.description}` : '';
+    return [foodsLine, detailLine].filter(Boolean).join('\n');
+  }
+
+  async function handleAnalyze(photoOverride) {
+    const targetPhoto = photoOverride || photo;
+    if (!targetPhoto) return;
     setAnalyzing(true);
     try {
-      const result = await analyzeNutritionPhoto(photo.preview, description);
+      const result = await analyzeNutritionPhoto(targetPhoto.preview, description);
       setAiResult(result);
       setMacros({ calories: result.calories, protein: result.protein, carbs: result.carbs, fats: result.fats });
+      if (!description.trim()) {
+        const autoDescription = buildAutoDescription(result);
+        if (autoDescription) setDescription(autoDescription);
+      }
     } catch {}
     setAnalyzing(false);
+  }
+
+  async function handlePhotoCapture(p) {
+    setPhoto(p);
+    await handleAnalyze(p);
   }
 
   function handleSave(e) {
@@ -72,7 +91,7 @@ function MealEntryModal({ open, onClose, onSave }) {
             <img src={photo.preview} alt="meal" className="w-full h-40 object-cover rounded-xl mb-2 border border-surface-600" />
           )}
           <div className="flex gap-2">
-            <PhotoCapture onCapture={p => setPhoto(p)} label={photo ? 'Change Photo' : 'Take/Upload Photo'} />
+            <PhotoCapture onCapture={handlePhotoCapture} label={photo ? 'Change Photo' : 'Take/Upload Photo'} />
             {photo && (
               <button type="button" onClick={() => setPhoto(null)} className="btn-secondary text-sm py-1 px-3">Remove</button>
             )}
@@ -89,7 +108,7 @@ function MealEntryModal({ open, onClose, onSave }) {
           <div>
             <button
               type="button"
-              onClick={handleAnalyze}
+              onClick={() => handleAnalyze()}
               disabled={analyzing}
               className="btn-secondary w-full text-sm flex items-center justify-center gap-2"
             >
@@ -124,9 +143,47 @@ export default function NutritionLog() {
   const { state, dispatch } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [tab, setTab] = useState('log');
+  const [caffeineForm, setCaffeineForm] = useState({
+    date: today(),
+    time: new Date().toTimeString().slice(0, 5),
+    amount: '',
+    unit: 'mg',
+    source: 'Coffee',
+    notes: '',
+  });
 
   function handleSave(meal) {
     dispatch({ type: ACTIONS.ADD_MEAL, payload: meal });
+  }
+
+  function handleAddCaffeine(e) {
+    e.preventDefault();
+    const amount = Number(caffeineForm.amount);
+    if (!amount || amount <= 0) return;
+
+    dispatch({
+      type: ACTIONS.ADD_SUBSTANCE,
+      payload: {
+        id: uuidv4(),
+        subType: 'caffeine',
+        date: caffeineForm.date,
+        time: caffeineForm.time,
+        amount,
+        unit: caffeineForm.unit,
+        source: caffeineForm.source,
+        notes: caffeineForm.notes,
+        createdAt: isoNow(),
+      },
+    });
+
+    setCaffeineForm({
+      date: today(),
+      time: new Date().toTimeString().slice(0, 5),
+      amount: '',
+      unit: 'mg',
+      source: 'Coffee',
+      notes: '',
+    });
   }
 
   // Weekly summary
@@ -140,6 +197,10 @@ export default function NutritionLog() {
   }));
 
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+  const caffeineEntries = [...state.substances]
+    .filter(s => s.subType === 'caffeine')
+    .sort((a, b) => `${b.date || ''}${b.time || ''}`.localeCompare(`${a.date || ''}${a.time || ''}`));
+  const caffeineByDate = groupByDate(caffeineEntries, 'date');
 
   return (
     <div>
@@ -154,6 +215,127 @@ export default function NutritionLog() {
 
       {tab === 'log' && (
         <div>
+          <div className="card mb-6">
+            <h2 className="font-bold text-slate-200 mb-3">☕ Caffeine Log</h2>
+            <form onSubmit={handleAddCaffeine} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Date</label>
+                  <input
+                    type="date"
+                    className="input"
+                    value={caffeineForm.date}
+                    onChange={e => setCaffeineForm(f => ({ ...f, date: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">Time</label>
+                  <input
+                    type="time"
+                    className="input"
+                    value={caffeineForm.time}
+                    onChange={e => setCaffeineForm(f => ({ ...f, time: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">Amount</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="input"
+                    placeholder="e.g. 95"
+                    value={caffeineForm.amount}
+                    onChange={e => setCaffeineForm(f => ({ ...f, amount: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">Unit</label>
+                  <select
+                    className="input"
+                    value={caffeineForm.unit}
+                    onChange={e => setCaffeineForm(f => ({ ...f, unit: e.target.value }))}
+                  >
+                    <option value="mg">mg</option>
+                    <option value="shots">espresso shots</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Source</label>
+                  <select
+                    className="input"
+                    value={caffeineForm.source}
+                    onChange={e => setCaffeineForm(f => ({ ...f, source: e.target.value }))}
+                  >
+                    {['Coffee', 'Espresso', 'Tea', 'Energy Drink', 'Pre-Workout', 'Soda', 'Other'].map(src => (
+                      <option key={src} value={src}>{src}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Notes</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. morning latte"
+                    value={caffeineForm.notes}
+                    onChange={e => setCaffeineForm(f => ({ ...f, notes: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <button type="submit" className="btn-primary w-full">Add Caffeine</button>
+            </form>
+
+            {caffeineEntries.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-surface-700">
+                <h3 className="font-semibold text-slate-200 mb-2">Recent Caffeine</h3>
+                <div className="space-y-2 max-h-52 overflow-auto pr-1">
+                  {caffeineEntries.slice(0, 12).map(entry => (
+                    <div key={entry.id} className="flex items-center justify-between text-sm">
+                      <div className="min-w-0">
+                        <p className="text-slate-200 truncate">
+                          {entry.source} · {entry.amount} {entry.unit}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {formatDate(entry.date)}{entry.time ? ` ${entry.time}` : ''}{entry.notes ? ` · ${entry.notes}` : ''}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => dispatch({ type: ACTIONS.DELETE_SUBSTANCE, payload: entry.id })}
+                        className="text-red-400 hover:text-red-300 ml-3 shrink-0"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {Object.keys(caffeineByDate).length > 0 && (
+              <div className="mt-4 pt-4 border-t border-surface-700">
+                <h3 className="font-semibold text-slate-200 mb-2">Daily Caffeine Totals</h3>
+                <div className="space-y-1.5">
+                  {Object.entries(caffeineByDate).slice(0, 7).map(([date, entries]) => {
+                    const totalMg = entries
+                      .filter(e => e.unit === 'mg')
+                      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+                    const shotCount = entries
+                      .filter(e => e.unit === 'shots')
+                      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+                    return (
+                      <div key={date} className="flex items-center justify-between text-xs text-slate-400">
+                        <span>{formatDate(date, 'MMM d')}</span>
+                        <span>
+                          {totalMg > 0 ? `${Math.round(totalMg)} mg` : '0 mg'}{shotCount > 0 ? ` · ${shotCount} shots` : ''}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           {state.meals.length === 0 ? (
             <p className="text-slate-500 text-sm">No meals logged yet.</p>
           ) : (

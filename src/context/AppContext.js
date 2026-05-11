@@ -8,6 +8,7 @@ const initialState = {
   checkins: [],        // Daily check-ins (energy, mood, soreness, stress, clarity, caffeine, notes)
   sleep: [],           // Sleep logs
   water: [],           // Water intake logs
+  waterGoalOz: 64,     // Daily water goal in ounces
   meals: [],           // Nutrition / meal logs
   workouts: [],        // Workout logs (history)
   workoutSessions: [], // Active/completed session records
@@ -33,6 +34,7 @@ export const ACTIONS = {
   // Water
   ADD_WATER: 'ADD_WATER',
   DELETE_WATER: 'DELETE_WATER',
+  UPDATE_WATER_GOAL: 'UPDATE_WATER_GOAL',
   // Nutrition
   ADD_MEAL: 'ADD_MEAL',
   UPDATE_MEAL: 'UPDATE_MEAL',
@@ -119,6 +121,8 @@ function reducer(state, action) {
       return { ...state, water: addItem(state.water, action.payload) };
     case ACTIONS.DELETE_WATER:
       return { ...state, water: removeItem(state.water, action.payload) };
+    case ACTIONS.UPDATE_WATER_GOAL:
+      return { ...state, waterGoalOz: action.payload };
 
     // Meals
     case ACTIONS.ADD_MEAL:

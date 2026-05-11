@@ -54,6 +54,16 @@ export async function detectPatterns(logs) {
 }
 
 /**
+ * Ask a health question with current app context.
+ * @param {string} question
+ * @param {object} context
+ * @returns {{ answer:string, keyFindings:string[], followUps:string[] }}
+ */
+export async function askHealthChat(question, context) {
+  return post('/api/ai/chat', { question, context: context || {} });
+}
+
+/**
  * Estimate body composition changes from measurement history.
  * @param {object[]} measurements
  * @returns {{ muscleChangePct:number, fatChangePct:number, trend:string, notes:string }}

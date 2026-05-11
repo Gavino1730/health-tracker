@@ -148,7 +148,8 @@ app.post('/api/ai/nutrition/analyze', async (req, res) => {
 - carbs (number, grams)
 - fats (number, grams)
 - confidence (number, 0-1 how confident you are)
-- description (string, brief description of what you see)
+- foods (array of strings, distinct foods/items you can identify)
+- description (string, 1 short sentence describing the meal)
 ${notes ? `User note: ${notes}` : ''}
 Return ONLY valid JSON, no markdown.`,
           },
@@ -266,6 +267,52 @@ Data summary: ${JSON.stringify(summary)}`,
   }
 });
 
+// Health Q&A chat with structured app context
+app.post('/api/ai/chat', async (req, res) => {
+  if (!requireOpenAI(res)) return;
+  try {
+    const { question, context } = req.body;
+    if (!question || !String(question).trim()) {
+      return res.status(400).json({ error: 'question is required' });
+    }
+
+    // Pull full persisted app state so chat always has complete context,
+    // then merge with client state (client takes precedence for fresh local edits).
+    const stateResult = await pool.query('SELECT state FROM app_state WHERE id = 1');
+    const persistedState = stateResult.rows[0]?.state || {};
+    const clientState = context && typeof context === 'object' ? context : {};
+    const mergedState = { ...persistedState, ...clientState };
+
+    const result = await askGPT([
+      {
+        role: 'system',
+        content: 'You are a practical health assistant. Use only the provided context. Respond with valid JSON only.',
+      },
+      {
+        role: 'user',
+        content: `Answer this user health question based on the app context.
+
+Return a JSON object with these keys:
+- answer (string, concise and actionable)
+- keyFindings (array of short strings, max 5)
+- followUps (array of short strings, max 3 suggested next questions)
+
+User question: ${question}
+Context: ${JSON.stringify({
+  mergedState,
+  persistedState,
+  clientState,
+})}`,
+      },
+    ], { temperature: 0.2 });
+
+    res.json(result);
+  } catch (err) {
+    console.error('/api/ai/chat error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Estimate body composition trend from measurements
 app.post('/api/ai/body/estimate', async (req, res) => {
   if (!requireOpenAI(res)) return;
@@ -290,88 +337,6 @@ Measurements over time: ${JSON.stringify(measurements)}`,
     res.json(result);
   } catch (err) {
     console.error('/api/ai/body/estimate error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ─── Apple Health Import (via iOS Shortcuts) ──────────────────────────────────
-
-app.post('/api/health/import', async (req, res) => {
-  try {
-    const { secret, date, sleep } = req.body;
-
-    // Shared-secret auth — set HEALTH_IMPORT_SECRET in Railway env vars
-    if (process.env.HEALTH_IMPORT_SECRET && secret !== process.env.HEALTH_IMPORT_SECRET) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({ error: 'date is required (YYYY-MM-DD)' });
-    }
-
-    const result = await pool.query('SELECT state FROM app_state WHERE id = 1');
-    const state = result.rows[0]?.state || {};
-    if (!state.sleep) state.sleep = [];
-
-    if (sleep) {
-      // Derive bedtime / waketime strings from ISO timestamps
-      const bedtime = sleep.sleepStart
-        ? new Date(sleep.sleepStart).toTimeString().slice(0, 5)
-        : null;
-      const waketime = sleep.sleepEnd
-        ? new Date(sleep.sleepEnd).toTimeString().slice(0, 5)
-        : null;
-
-      const durationMins = sleep.hoursSlept
-        ? Math.round(sleep.hoursSlept * 60)
-        : sleep.sleepStart && sleep.sleepEnd
-        ? Math.round((new Date(sleep.sleepEnd) - new Date(sleep.sleepStart)) / 60000)
-        : 0;
-
-      // Mirror calculateSleepScore() from src/utils/scores.js
-      // quality is unknown from Apple Health, so default to 5 for scoring
-      const durationFactor = Math.min(durationMins / 480, 1.1);
-      const sleepScore = Math.round(Math.max(1, Math.min(10, durationFactor * 5 + 5 * 0.5)));
-
-      const entry = {
-        id: `ah-${date}`,
-        date,
-        source: 'apple-health',
-        bedtime,
-        waketime,
-        durationMins,
-        quality: null,           // not captured from Apple Health
-        sleepScore,
-        hrv: sleep.hrv ?? null,
-        restingHeartRate: sleep.restingHeartRate ?? null,
-        deepSleep: sleep.deepSleep ?? null,   // hours
-        remSleep: sleep.remSleep ?? null,     // hours
-        coreSleep: sleep.coreSleep ?? null,   // hours
-        timeInBed: sleep.timeInBed ?? null,   // hours
-        sleepStart: sleep.sleepStart ?? null,
-        sleepEnd: sleep.sleepEnd ?? null,
-        notes: '',
-        importedAt: new Date().toISOString(),
-      };
-
-      // Upsert by date — replace existing Apple Health entry for same date
-      const idx = state.sleep.findIndex(s => s.date === date && s.source === 'apple-health');
-      if (idx >= 0) {
-        state.sleep[idx] = entry;
-      } else {
-        state.sleep.push(entry);
-      }
-    }
-
-    await pool.query(
-      `INSERT INTO app_state (id, state, updated_at) VALUES (1, $1, NOW())
-       ON CONFLICT (id) DO UPDATE SET state = $1, updated_at = NOW()`,
-      [state]
-    );
-
-    res.json({ ok: true, date });
-  } catch (err) {
-    console.error('POST /api/health/import error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

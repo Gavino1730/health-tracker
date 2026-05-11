@@ -33,6 +33,7 @@ const NAV_GROUPS = [
       { to: '/body', label: 'Body', icon: '📏' },
       { to: '/injury', label: 'Injury', icon: '🩹' },
       { to: '/profile', label: 'Profile', icon: '👤' },
+      { to: '/chat', label: 'Chat', icon: '💬' },
     ],
   },
 ];
