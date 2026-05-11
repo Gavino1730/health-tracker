@@ -1,0 +1,68 @@
+export const WORKOUT_TEMPLATES = [
+  {
+    id: 'push',
+    name: 'Push Day (Chest / Shoulders / Triceps)',
+    icon: '💪',
+    exercises: [
+      { id: 'p1', name: 'Bench Press', sets: 4, reps: '8', restSeconds: 90, notes: '' },
+      { id: 'p2', name: 'Incline Dumbbell Press', sets: 3, reps: '10', restSeconds: 90, notes: '' },
+      { id: 'p3', name: 'Overhead Press', sets: 3, reps: '8', restSeconds: 90, notes: '' },
+      { id: 'p4', name: 'Cable Lateral Raise', sets: 3, reps: '15', restSeconds: 60, notes: '' },
+      { id: 'p5', name: 'Tricep Pushdown', sets: 3, reps: '12', restSeconds: 60, notes: '' },
+      { id: 'p6', name: 'Overhead Tricep Extension', sets: 3, reps: '12', restSeconds: 60, notes: '' },
+    ],
+  },
+  {
+    id: 'pull',
+    name: 'Pull Day (Back / Biceps)',
+    icon: '🏋️',
+    exercises: [
+      { id: 'pl1', name: 'Deadlift', sets: 4, reps: '5', restSeconds: 180, notes: '' },
+      { id: 'pl2', name: 'Pull-up', sets: 3, reps: '8', restSeconds: 90, notes: '' },
+      { id: 'pl3', name: 'Bent-Over Row', sets: 3, reps: '10', restSeconds: 90, notes: '' },
+      { id: 'pl4', name: 'Seated Cable Row', sets: 3, reps: '12', restSeconds: 60, notes: '' },
+      { id: 'pl5', name: 'Face Pull', sets: 3, reps: '15', restSeconds: 60, notes: '' },
+      { id: 'pl6', name: 'Barbell Curl', sets: 3, reps: '10', restSeconds: 60, notes: '' },
+      { id: 'pl7', name: 'Hammer Curl', sets: 3, reps: '12', restSeconds: 60, notes: '' },
+    ],
+  },
+  {
+    id: 'legs',
+    name: 'Leg Day',
+    icon: '🦵',
+    exercises: [
+      { id: 'l1', name: 'Squat', sets: 4, reps: '8', restSeconds: 180, notes: '' },
+      { id: 'l2', name: 'Romanian Deadlift', sets: 3, reps: '10', restSeconds: 90, notes: '' },
+      { id: 'l3', name: 'Leg Press', sets: 3, reps: '12', restSeconds: 90, notes: '' },
+      { id: 'l4', name: 'Walking Lunge', sets: 3, reps: '20 steps', restSeconds: 60, notes: '' },
+      { id: 'l5', name: 'Leg Curl', sets: 3, reps: '12', restSeconds: 60, notes: '' },
+      { id: 'l6', name: 'Calf Raise', sets: 4, reps: '15', restSeconds: 45, notes: '' },
+    ],
+  },
+  {
+    id: 'full',
+    name: 'Full Body',
+    icon: '🔥',
+    exercises: [
+      { id: 'f1', name: 'Squat', sets: 3, reps: '10', restSeconds: 90, notes: '' },
+      { id: 'f2', name: 'Bench Press', sets: 3, reps: '10', restSeconds: 90, notes: '' },
+      { id: 'f3', name: 'Bent-Over Row', sets: 3, reps: '10', restSeconds: 90, notes: '' },
+      { id: 'f4', name: 'Overhead Press', sets: 3, reps: '10', restSeconds: 90, notes: '' },
+      { id: 'f5', name: 'Romanian Deadlift', sets: 3, reps: '10', restSeconds: 90, notes: '' },
+      { id: 'f6', name: 'Pull-up', sets: 3, reps: '6', restSeconds: 90, notes: '' },
+    ],
+  },
+  {
+    id: 'hiit',
+    name: 'HIIT Cardio',
+    icon: '⚡',
+    exercises: [
+      { id: 'h1', name: 'Jump Rope', sets: 1, reps: '3 min', restSeconds: 60, notes: 'Steady pace' },
+      { id: 'h2', name: 'Burpees', sets: 4, reps: '10', restSeconds: 30, notes: '' },
+      { id: 'h3', name: 'Mountain Climbers', sets: 4, reps: '20', restSeconds: 30, notes: '' },
+      { id: 'h4', name: 'Box Jump', sets: 4, reps: '8', restSeconds: 45, notes: '' },
+      { id: 'h5', name: 'Kettlebell Swing', sets: 4, reps: '15', restSeconds: 45, notes: '' },
+      { id: 'h6', name: 'Sprint Intervals', sets: 6, reps: '20s on / 40s off', restSeconds: 0, notes: '' },
+    ],
+  },
+];

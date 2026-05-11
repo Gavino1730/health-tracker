@@ -1,24 +1,44 @@
-import logo from './logo.svg';
-import './App.css';
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AppProvider } from './context/AppContext';
+import Layout from './components/layout/Layout';
+import Dashboard from './components/dashboard/Dashboard';
+import DailyCheckin from './components/checkin/DailyCheckin';
+import SleepLog from './components/sleep/SleepLog';
+import WaterTracker from './components/water/WaterTracker';
+import NutritionLog from './components/nutrition/NutritionLog';
+import MedicationLog from './components/medication/MedicationLog';
+import SubstanceLog from './components/substances/SubstanceLog';
+import WorkoutLog from './components/workout/WorkoutLog';
+import StretchingLibrary from './components/stretching/StretchingLibrary';
+import RecoveryDashboard from './components/recovery/RecoveryDashboard';
+import BodyComposition from './components/body/BodyComposition';
+import InjuryTracker from './components/injury/InjuryTracker';
+import SkiDayLog from './components/ski/SkiDayLog';
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <AppProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="checkin" element={<DailyCheckin />} />
+            <Route path="sleep" element={<SleepLog />} />
+            <Route path="water" element={<WaterTracker />} />
+            <Route path="nutrition" element={<NutritionLog />} />
+            <Route path="medications" element={<MedicationLog />} />
+            <Route path="substances" element={<SubstanceLog />} />
+            <Route path="workout" element={<WorkoutLog />} />
+            <Route path="stretching" element={<StretchingLibrary />} />
+            <Route path="recovery" element={<RecoveryDashboard />} />
+            <Route path="body" element={<BodyComposition />} />
+            <Route path="injury" element={<InjuryTracker />} />
+            <Route path="ski" element={<SkiDayLog />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AppProvider>
   );
 }
 
