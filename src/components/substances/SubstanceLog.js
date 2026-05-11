@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useApp, ACTIONS } from '../../context/AppContext';
-import { today, isoNow, formatDate, groupByDate } from '../../utils/dateUtils';
+import { today, isoNow, formatDate } from '../../utils/dateUtils';
 
 const ALCOHOL_TYPES = ['Beer', 'Wine', 'Spirits / Liquor', 'Cocktail', 'Cider', 'Hard Seltzer', 'Other'];
 const WEED_METHODS = ['Flower (smoked)', 'Vape', 'Edible', 'Concentrate / Dab', 'Tincture', 'Topical', 'Other'];

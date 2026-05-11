@@ -88,7 +88,6 @@ export default function Profile() {
   const bmiInfo = bmiLabel(Number(bmi));
   const tdee = calcTDEE(form);
   const heightDisplay = form.heightFt ? `${form.heightFt}′${form.heightIn || 0}″` : null;
-  const weightDisplay = form.weightLbs ? `${form.weightLbs} lbs` : null;
 
   if (!editing && state.profile?.name) {
     return (

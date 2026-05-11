@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { useApp, ACTIONS } from '../../context/AppContext';
 import { today, isoNow, formatDate } from '../../utils/dateUtils';
 import ScoreInput from '../shared/ScoreInput';

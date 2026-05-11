@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useApp, ACTIONS } from '../../context/AppContext';
-import { today, isoNow, formatDate, formatDateTime, groupByDate } from '../../utils/dateUtils';
+import { today, isoNow, formatDate, groupByDate } from '../../utils/dateUtils';
 import PhotoCapture from '../shared/PhotoCapture';
 import Modal from '../shared/Modal';
 import { analyzeNutritionPhoto } from '../../services/api';

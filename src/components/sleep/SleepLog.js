@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useApp, ACTIONS } from '../../context/AppContext';
 import ScoreInput from '../shared/ScoreInput';
-import { today, isoNow, formatDate, durationMinutes, minutesToHoursLabel } from '../../utils/dateUtils';
+import { today, isoNow, formatDate, minutesToHoursLabel } from '../../utils/dateUtils';
 import { calculateSleepScore } from '../../utils/scores';
 import TrendChart from '../shared/TrendChart';
 
