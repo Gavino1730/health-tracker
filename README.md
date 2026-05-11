@@ -1,5 +1,20 @@
 # Getting Started with Create React App
 
+## OpenAI Configuration
+
+The AI features in this app use the OpenAI Responses API.
+
+Required environment variables:
+
+- `DATABASE_URL` for Postgres
+- `OPENAI_API_KEY` for AI features
+
+Optional environment variables:
+
+- `OPENAI_MODEL` to override the default model
+
+The default model is set to `gpt-5.4-nano` for the lowest cost supported by the current OpenAI model docs. It is the cheapest option, but if you want better quality you can raise it to `gpt-5.4-mini` or `gpt-5.5`.
+
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts

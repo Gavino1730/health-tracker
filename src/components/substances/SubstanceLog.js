@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useApp, ACTIONS } from '../../context/AppContext';
 import { today, isoNow, formatDate } from '../../utils/dateUtils';
+import { analyzeSubstanceCorrelations } from '../../services/api';
 
 const ALCOHOL_TYPES = ['Beer', 'Wine', 'Spirits / Liquor', 'Cocktail', 'Cider', 'Hard Seltzer', 'Other'];
 const WEED_METHODS = ['Flower (smoked)', 'Vape', 'Edible', 'Concentrate / Dab', 'Tincture', 'Topical', 'Other'];
@@ -89,9 +90,24 @@ function WeedForm({ onAdd }) {
 export default function SubstanceLog() {
   const { state, dispatch } = useApp();
   const [tab, setTab] = useState('alcohol');
+  const [corrResult, setCorrResult] = useState(null);
+  const [corrLoading, setCorrLoading] = useState(false);
+  const [corrError, setCorrError] = useState(null);
 
   function handleAdd(entry) {
     dispatch({ type: ACTIONS.ADD_SUBSTANCE, payload: entry });
+  }
+
+  async function handleAnalyze() {
+    setCorrLoading(true);
+    setCorrError(null);
+    try {
+      const result = await analyzeSubstanceCorrelations(state);
+      setCorrResult(result);
+    } catch (err) {
+      setCorrError(err.message || 'Analysis failed');
+    }
+    setCorrLoading(false);
   }
 
   const alcoholEntries = [...state.substances.filter(s => s.subType === 'alcohol')].reverse();
@@ -101,9 +117,9 @@ export default function SubstanceLog() {
     <div>
       <h1 className="section-title">Substance Log</h1>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-5">
-        {[['alcohol', '🍺 Alcohol'], ['weed', '🌿 Weed']].map(([key, label]) => (
+      {/* Tabs — includes AI Correlations */}
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {[['alcohol', '🍺 Alcohol'], ['weed', '🌿 Weed'], ['correlations', '🤖 AI Correlations']].map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -114,32 +130,124 @@ export default function SubstanceLog() {
         ))}
       </div>
 
-      <div className="card mb-6">
-        {tab === 'alcohol' ? <AlcoholForm onAdd={handleAdd} /> : <WeedForm onAdd={handleAdd} />}
-      </div>
-
-      {/* History */}
-      <div>
-        <h2 className="font-bold text-slate-300 mb-3">History</h2>
-        {(tab === 'alcohol' ? alcoholEntries : weedEntries).length === 0 ? (
-          <p className="text-slate-500 text-sm">No entries yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {(tab === 'alcohol' ? alcoholEntries : weedEntries).map(s => (
-              <div key={s.id} className="card flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-slate-200">
-                    {s.subType === 'alcohol' ? s.type : s.method}
-                    {s.amount ? ` – ${s.amount} ${s.unit}` : ''}
-                  </p>
-                  <p className="text-sm text-slate-400">{formatDate(s.date)}{s.notes ? ` · ${s.notes}` : ''}</p>
-                </div>
-                <button onClick={() => dispatch({ type: ACTIONS.DELETE_SUBSTANCE, payload: s.id })} className="text-red-400 hover:text-red-300 ml-3">✕</button>
-              </div>
-            ))}
+      {tab === 'correlations' ? (
+        <div className="space-y-4">
+          <div className="card">
+            <p className="text-sm text-slate-400 mb-3">
+              Analyzes how your alcohol and weed use correlates with sleep quality, next-day energy, mood, soreness, and workout performance across your full log history.
+            </p>
+            <div className="text-xs text-slate-500 flex flex-wrap gap-3 mb-4">
+              <span>🍺 {state.substances.filter(s => s.subType === 'alcohol').length} alcohol entries</span>
+              <span>🌿 {state.substances.filter(s => s.subType === 'weed').length} weed entries</span>
+              <span>😴 {state.sleep?.length || 0} sleep logs</span>
+              <span>📋 {state.checkins?.length || 0} check-ins</span>
+            </div>
+            <button
+              onClick={handleAnalyze}
+              disabled={corrLoading || state.substances.length === 0}
+              className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {corrLoading ? 'Analyzing…' : corrResult ? 'Re-analyze' : 'Analyze Correlations'}
+            </button>
+            {state.substances.length === 0 && (
+              <p className="text-xs text-slate-500 text-center mt-2">Log some substance data first to enable analysis.</p>
+            )}
           </div>
-        )}
-      </div>
+
+          {corrError && (
+            <div className="card border border-red-800/40 text-sm text-red-400">{corrError}</div>
+          )}
+
+          {corrResult && (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="card">
+                <p className="text-xs font-bold uppercase tracking-widest text-brand-400 mb-2">Summary</p>
+                <p className="text-sm text-slate-200 leading-relaxed">{corrResult.summary}</p>
+                {corrResult.dataQuality && corrResult.dataQuality !== 'sufficient' && (
+                  <p className="text-xs text-yellow-400 mt-2">
+                    ⚠️ Data quality: {corrResult.dataQuality}. More logs will improve accuracy.
+                  </p>
+                )}
+              </div>
+
+              {/* Correlations */}
+              {corrResult.correlations?.length > 0 && (
+                <div className="card">
+                  <p className="text-xs font-bold uppercase tracking-widest text-brand-400 mb-3">Correlations Found</p>
+                  <div className="space-y-3">
+                    {corrResult.correlations.map((corr, i) => (
+                      <div key={i} className="bg-surface-700 rounded-xl p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full capitalize
+                            bg-surface-600 text-slate-300">
+                            {corr.substance}
+                          </span>
+                          <span className="text-xs text-slate-400">→</span>
+                          <span className="text-xs font-semibold text-slate-300">{corr.metric}</span>
+                          <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${
+                            corr.impact === 'negative' ? 'bg-red-900/50 text-red-300' :
+                            corr.impact === 'positive' ? 'bg-emerald-900/50 text-emerald-300' :
+                            corr.impact === 'mixed' ? 'bg-yellow-900/50 text-yellow-300' :
+                            'bg-surface-600 text-slate-400'
+                          }`}>
+                            {corr.impact}
+                          </span>
+                        </div>
+                        <p className="text-sm font-semibold text-slate-200">{corr.direction}</p>
+                        {corr.detail && <p className="text-xs text-slate-400 mt-1">{corr.detail}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {corrResult.recommendations?.length > 0 && (
+                <div className="card">
+                  <p className="text-xs font-bold uppercase tracking-widest text-brand-400 mb-3">Recommendations</p>
+                  <ul className="space-y-2">
+                    {corrResult.recommendations.map((rec, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
+                        <span className="text-brand-400 mt-0.5 shrink-0">→</span>{rec}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="card mb-6">
+            {tab === 'alcohol' ? <AlcoholForm onAdd={handleAdd} /> : <WeedForm onAdd={handleAdd} />}
+          </div>
+
+          {/* History */}
+          <div>
+            <h2 className="font-bold text-slate-300 mb-3">History</h2>
+            {(tab === 'alcohol' ? alcoholEntries : weedEntries).length === 0 ? (
+              <p className="text-slate-500 text-sm">No entries yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {(tab === 'alcohol' ? alcoholEntries : weedEntries).map(s => (
+                  <div key={s.id} className="card flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-200">
+                        {s.subType === 'alcohol' ? s.type : s.method}
+                        {s.amount ? ` – ${s.amount} ${s.unit}` : ''}
+                      </p>
+                      <p className="text-sm text-slate-400">{formatDate(s.date)}{s.notes ? ` · ${s.notes}` : ''}</p>
+                    </div>
+                    <button onClick={() => dispatch({ type: ACTIONS.DELETE_SUBSTANCE, payload: s.id })} className="text-red-400 hover:text-red-300 ml-3">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -27,6 +27,7 @@ export default function WorkoutSession({ session, onComplete, onCancel }) {
   const [startTime] = useState(new Date());
   const [done, setDone] = useState(false);
   const [summary, setSummary] = useState(null);
+  const [rpe, setRpe] = useState(null);
 
   // AI chat state
   const [showChat, setShowChat] = useState(false);
@@ -186,7 +187,30 @@ export default function WorkoutSession({ session, onComplete, onCancel }) {
           ))}
         </div>
 
-        <button onClick={() => onComplete(summary)} className="btn-primary w-full py-3">Save & Exit</button>
+        <div className="card mb-4">
+          <p className="font-bold text-slate-200 mb-3">How hard was this workout? <span className="text-slate-400 font-normal text-sm">(RPE 1–10)</span></p>
+          <div className="grid grid-cols-5 gap-2">
+            {[1,2,3,4,5,6,7,8,9,10].map(n => (
+              <button
+                key={n}
+                onClick={() => setRpe(n)}
+                className={`py-2 rounded-xl font-bold text-sm transition-colors ${
+                  rpe === n ? 'bg-brand-600 text-white' :
+                  n <= 3 ? 'bg-emerald-900/40 text-emerald-300 hover:bg-emerald-800/40' :
+                  n <= 6 ? 'bg-yellow-900/40 text-yellow-300 hover:bg-yellow-800/40' :
+                  'bg-red-900/40 text-red-300 hover:bg-red-800/40'
+                }`}
+              >{n}</button>
+            ))}
+          </div>
+          {rpe && (
+            <p className="text-xs text-slate-400 mt-2">
+              {rpe <= 3 ? 'Easy — could have done much more' : rpe <= 5 ? 'Moderate — comfortable effort' : rpe <= 7 ? 'Hard — challenging but manageable' : rpe <= 9 ? 'Very Hard — near max effort' : 'All-out max effort'}
+            </p>
+          )}
+        </div>
+
+        <button onClick={() => onComplete({ ...summary, rpe })} className="btn-primary w-full py-3">Save & Exit</button>
       </div>
     );
   }

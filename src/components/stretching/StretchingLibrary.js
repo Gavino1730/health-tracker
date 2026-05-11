@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useApp, ACTIONS } from '../../context/AppContext';
 import { isoNow, formatDateTime } from '../../utils/dateUtils';
@@ -203,35 +203,26 @@ function SessionSummary({ session, onDone }) {
 
 export default function StretchingLibrary() {
   const { state, dispatch } = useApp();
-  const [view, setView] = useState('picker'); // picker | session | summary
+  const [view, setView] = useState('picker');
   const [selectedRoutine, setSelectedRoutine] = useState(null);
   const [lastSession, setLastSession] = useState(null);
-
-  // AI recommendation state
-  const [aiRec, setAiRec] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
-  const [showAllAiEx, setShowAllAiEx] = useState(false);
 
-  const fetchRec = useCallback(async () => {
+  const rec = state.aiStretchRec;
+
+  async function fetchRec() {
     setAiLoading(true);
     setAiError(null);
-    setAiRec(null);
-    setShowAllAiEx(false);
     try {
-      const rec = await recommendStretch(state);
-      setAiRec(rec);
+      const result = await recommendStretch(state);
+      dispatch({ type: ACTIONS.SET_AI_STRETCH_REC, payload: { ...result, generatedAt: new Date().toISOString() } });
     } catch (err) {
-      setAiError(err.message || 'Could not load recommendation');
+      setAiError(err.message || 'Could not generate recommendation');
     } finally {
       setAiLoading(false);
     }
-  }, [state]);
-
-  useEffect(() => {
-    fetchRec();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }
 
   function handleSelect(routine) {
     setSelectedRoutine(routine);
@@ -239,22 +230,21 @@ export default function StretchingLibrary() {
   }
 
   function startAiRoutine() {
-    if (!aiRec?.exercises?.length) return;
-    const routine = {
+    if (!rec?.exercises?.length) return;
+    handleSelect({
       id: 'ai-stretch',
-      name: aiRec.routineName,
-      icon: aiRec.routineIcon || '🧘',
-      description: aiRec.reasoning,
-      durationLabel: `~${aiRec.estimatedDurationMins} min`,
-      exercises: aiRec.exercises.map((ex, i) => ({
+      name: rec.routineName,
+      icon: rec.routineIcon || '🧘',
+      description: rec.reasoning,
+      durationLabel: `~${rec.estimatedDurationMins} min`,
+      exercises: rec.exercises.map((ex, i) => ({
         id: `ai-s-${i}`,
         name: ex.name,
         duration: ex.duration || null,
         reps: ex.reps || null,
         notes: ex.notes || '',
       })),
-    };
-    handleSelect(routine);
+    });
   }
 
   function handleComplete(sessionData) {
@@ -266,7 +256,6 @@ export default function StretchingLibrary() {
   if (view === 'session' && selectedRoutine) {
     return <ActiveSession routine={selectedRoutine} onComplete={handleComplete} onBack={() => setView('picker')} />;
   }
-
   if (view === 'summary' && lastSession) {
     return <SessionSummary session={lastSession} onDone={() => setView('picker')} />;
   }
@@ -274,99 +263,76 @@ export default function StretchingLibrary() {
   return (
     <div>
       {/* ── AI Recommendation ─────────────────────────────────────────────── */}
-      {aiLoading && (
-        <div className="card mb-5 flex items-center gap-3 text-slate-400">
-          <div className="animate-spin text-xl">🧘</div>
-          <div>
-            <p className="text-sm font-semibold text-slate-300">Finding your best routine for today…</p>
-            <p className="text-xs">Checking recent workouts, soreness, and injuries</p>
+      <div className="card mb-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold text-slate-200">
+            {rec ? `${rec.routineIcon || '🧘'} ${rec.routineName}` : '✨ AI Recommendation'}
+          </h2>
+          <div className="flex items-center gap-2">
+            {rec?.generatedAt && (
+              <span className="text-xs text-slate-500">{new Date(rec.generatedAt).toLocaleDateString()}</span>
+            )}
+            <button
+              onClick={fetchRec}
+              disabled={aiLoading}
+              className="text-xs bg-surface-700 hover:bg-surface-600 text-slate-300 px-3 py-1.5 rounded-xl transition-colors disabled:opacity-40"
+            >
+              {aiLoading ? '…' : rec ? '↻ Refresh' : 'Get Recommendation'}
+            </button>
           </div>
         </div>
-      )}
 
-      {aiError && !aiLoading && (
-        <div className="card mb-5 border border-red-800/40 text-sm text-red-400 flex items-center justify-between">
-          <span>⚠️ {aiError}</span>
-          <button onClick={fetchRec} className="ml-3 underline hover:text-red-300">Retry</button>
-        </div>
-      )}
+        {aiError && <p className="text-xs text-red-400 mb-3">⚠️ {aiError}</p>}
 
-      {aiRec && !aiLoading && (
-        <div className={`card mb-5 ${aiRec.urgency === 'high' ? 'border border-brand-600/40 bg-brand-900/10' : 'border border-surface-600'}`}>
-          {/* Header */}
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{aiRec.routineIcon || '🧘'}</span>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-brand-400">AI Today's Pick</p>
-                <h2 className="font-extrabold text-slate-100 text-lg leading-tight">{aiRec.routineName}</h2>
-              </div>
-            </div>
-            <button onClick={fetchRec} className="text-xs text-slate-500 hover:text-slate-300 transition-colors shrink-0 ml-2">↻</button>
-          </div>
+        {!rec && !aiLoading && !aiError && (
+          <p className="text-sm text-slate-500">
+            Hit "Get Recommendation" and AI will look at your recent workouts, soreness, and injuries to suggest the right mobility work.
+          </p>
+        )}
 
-          {/* Reasoning */}
-          <p className="text-sm text-slate-300 mb-3">{aiRec.reasoning}</p>
+        {aiLoading && <p className="text-sm text-slate-400 animate-pulse">Analyzing your data…</p>}
 
-          {/* Tags */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            {aiRec.urgency && (
-              <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-                aiRec.urgency === 'high' ? 'bg-orange-900/50 text-orange-300' :
-                aiRec.urgency === 'moderate' ? 'bg-yellow-900/50 text-yellow-300' :
-                'bg-emerald-900/50 text-emerald-300'
-              }`}>{aiRec.urgency} priority</span>
-            )}
-            {aiRec.estimatedDurationMins > 0 && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-surface-700 text-slate-300">⏱ ~{aiRec.estimatedDurationMins} min</span>
-            )}
-            <span className="text-xs px-2.5 py-1 rounded-full bg-surface-700 text-slate-400">🕐 {aiRec.timing}</span>
-          </div>
+        {rec && !aiLoading && (
+          <>
+            <p className="text-sm text-slate-300 mb-1">{rec.reasoning}</p>
+            <p className="text-xs text-slate-500 mb-3">🕐 {rec.timing}</p>
 
-          {/* Focus areas */}
-          {aiRec.focusAreas?.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {aiRec.focusAreas.map((area, i) => (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {rec.urgency && (
+                <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                  rec.urgency === 'high' ? 'bg-orange-900/50 text-orange-300' :
+                  rec.urgency === 'moderate' ? 'bg-yellow-900/50 text-yellow-300' :
+                  'bg-emerald-900/50 text-emerald-300'
+                }`}>{rec.urgency} priority</span>
+              )}
+              {rec.estimatedDurationMins > 0 && (
+                <span className="text-xs px-2.5 py-1 rounded-full bg-surface-700 text-slate-400">⏱ ~{rec.estimatedDurationMins} min</span>
+              )}
+              {rec.focusAreas?.map((area, i) => (
                 <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-surface-700 text-slate-400">{area}</span>
               ))}
             </div>
-          )}
 
-          {/* Exercise list */}
-          {aiRec.exercises?.length > 0 && (
-            <div className="bg-surface-700 rounded-xl p-3 mb-4">
-              <p className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wide">Exercises</p>
-              <div className="space-y-2">
-                {(showAllAiEx ? aiRec.exercises : aiRec.exercises.slice(0, 5)).map((ex, i) => (
-                  <div key={i}>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-sm font-semibold text-slate-200">{ex.name}</span>
-                      <span className="text-xs text-brand-400">{ex.duration || ex.reps}</span>
-                    </div>
-                    {ex.notes && <p className="text-xs text-slate-500 mt-0.5">{ex.notes}</p>}
+            {rec.exercises?.length > 0 && (
+              <div className="space-y-1 mb-4">
+                {rec.exercises.map((ex, i) => (
+                  <div key={i} className="flex items-center justify-between bg-surface-700 rounded-xl px-4 py-2.5">
+                    <span className="text-sm font-semibold text-slate-200">{ex.name}</span>
+                    <span className="text-xs font-bold text-brand-400">{ex.duration || ex.reps}</span>
                   </div>
                 ))}
               </div>
-              {aiRec.exercises.length > 5 && (
-                <button
-                  onClick={() => setShowAllAiEx(v => !v)}
-                  className="text-xs text-brand-400 hover:text-brand-300 mt-2 transition-colors"
-                >
-                  {showAllAiEx ? '▲ Show less' : `▼ Show ${aiRec.exercises.length - 5} more`}
-                </button>
-              )}
-            </div>
-          )}
+            )}
 
-          <button onClick={startAiRoutine} className="btn-primary w-full py-2.5 text-base font-bold">
-            ▶ Start This Routine
-          </button>
-        </div>
-      )}
+            <button onClick={startAiRoutine} className="btn-primary w-full py-2.5 font-bold">
+              ▶ Start This Routine
+            </button>
+          </>
+        )}
+      </div>
 
       <RoutinePicker onSelect={handleSelect} />
 
-      {/* History */}
       {state.stretchSessions.length > 0 && (
         <div className="mt-8">
           <h2 className="font-bold text-slate-300 mb-3">Recent Sessions</h2>

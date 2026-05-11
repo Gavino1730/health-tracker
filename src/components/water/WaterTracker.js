@@ -19,6 +19,7 @@ export default function WaterTracker() {
   const [custom, setCustom] = useState('');
   const [goalInput, setGoalInput] = useState(String(state.waterGoalOz || DEFAULT_DAILY_GOAL_OZ));
   const todayStr = today();
+  const getEntryDate = w => w?.date || w?.createdAt?.slice(0, 10);
   const dailyGoalOz = state.waterGoalOz || DEFAULT_DAILY_GOAL_OZ;
   const dailyGoalMl = ozToMl(dailyGoalOz);
 
@@ -26,7 +27,7 @@ export default function WaterTracker() {
     setGoalInput(String(dailyGoalOz));
   }, [dailyGoalOz]);
 
-  const todayEntries = state.water.filter(w => w.createdAt?.startsWith(todayStr));
+  const todayEntries = state.water.filter(w => getEntryDate(w) === todayStr);
   const todayTotal = todayEntries.reduce((sum, w) => sum + w.amount, 0);
   const pct = Math.min((todayTotal / dailyGoalMl) * 100, 100);
 
@@ -51,7 +52,12 @@ export default function WaterTracker() {
     dispatch({ type: ACTIONS.UPDATE_WATER_GOAL, payload: nextGoal });
   }
 
-  const grouped = groupByDate([...state.water].reverse(), 'date');
+  const grouped = groupByDate(
+    [...state.water]
+      .map(w => ({ ...w, date: getEntryDate(w) }))
+      .reverse(),
+    'date'
+  );
 
   return (
     <div>
@@ -118,9 +124,15 @@ export default function WaterTracker() {
           <div className="space-y-1">
             {[...todayEntries].reverse().map(w => (
               <div key={w.id} className="flex items-center justify-between text-sm">
-                <span className="text-slate-400">{formatDateTime(w.createdAt)}</span>
+                <span className="text-slate-400">{w.createdAt ? formatDateTime(w.createdAt) : w.date}</span>
                 <span className="font-semibold text-brand-300">{mlToOz(w.amount)} oz</span>
-                <button onClick={() => dispatch({ type: ACTIONS.DELETE_WATER, payload: w.id })} className="text-red-400 hover:text-red-300 ml-2">✕</button>
+                <button
+                  onClick={() => dispatch({ type: ACTIONS.DELETE_WATER, payload: w.id })}
+                  className="text-red-400 hover:text-red-300 ml-2"
+                  aria-label="Delete water entry"
+                >
+                  ✕
+                </button>
               </div>
             ))}
           </div>
@@ -135,12 +147,33 @@ export default function WaterTracker() {
             const total = entries.reduce((s, e) => s + e.amount, 0);
             const dayPct = Math.min((total / dailyGoalMl) * 100, 100);
             return (
-              <div key={date} className="card flex items-center gap-3">
-                <span className="text-slate-400 text-sm w-24 shrink-0">{date}</span>
-                <div className="flex-1 h-2 bg-surface-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-brand-500 rounded-full" style={{ width: `${dayPct}%` }} />
+              <div key={date} className="card">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-slate-400 text-sm w-24 shrink-0">{date}</span>
+                  <div className="flex-1 h-2 bg-surface-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-brand-500 rounded-full" style={{ width: `${dayPct}%` }} />
+                  </div>
+                  <span className="text-sm font-semibold text-slate-300 w-16 text-right">{mlToOz(total)} oz</span>
                 </div>
-                <span className="text-sm font-semibold text-slate-300 w-16 text-right">{mlToOz(total)} oz</span>
+                <div className="space-y-1">
+                  {entries.map(entry => (
+                    <div key={entry.id} className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500">
+                        {entry.createdAt ? formatDateTime(entry.createdAt) : `${date}, time not recorded`}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-300">{mlToOz(entry.amount)} oz</span>
+                        <button
+                          onClick={() => dispatch({ type: ACTIONS.DELETE_WATER, payload: entry.id })}
+                          className="text-red-400 hover:text-red-300"
+                          aria-label="Delete water history entry"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })}

@@ -9,6 +9,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.4-nano';
 
 function requireOpenAI(res) {
   if (!openai) {
@@ -19,14 +20,24 @@ function requireOpenAI(res) {
 }
 
 // Ask GPT for a JSON response. Throws on failure.
-async function askGPT(messages, { model = 'gpt-4o', temperature = 0.3 } = {}) {
-  const completion = await openai.chat.completions.create({
+async function askGPT(messages, { model = OPENAI_MODEL, temperature = 0.3 } = {}) {
+  const response = await openai.responses.create({
     model,
     temperature,
-    response_format: { type: 'json_object' },
-    messages,
+    input: messages,
+    text: { format: { type: 'json_object' } },
   });
-  return JSON.parse(completion.choices[0].message.content);
+
+  const text = response.output_text;
+  if (!text || !String(text).trim()) {
+    throw new Error('Model returned an empty response.');
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Model did not return valid JSON. Received: ${text.slice(0, 300)}`);
+  }
 }
 
 // 50mb limit to accommodate base64 progress photos
@@ -318,6 +329,113 @@ Context: ${JSON.stringify({
   }
 });
 
+// Analyze sleep patterns and suggest improvements
+app.post('/api/ai/sleep/analyze', async (req, res) => {
+  if (!requireOpenAI(res)) return;
+  try {
+    const { sleep, checkins, substances, workouts } = req.body;
+    const result = await askGPT([
+      {
+        role: 'system',
+        content: 'You are a sleep scientist and health coach. Respond with valid JSON only. Be specific with times and numbers when available.',
+      },
+      {
+        role: 'user',
+        content: `Analyze this person's sleep data alongside their lifestyle factors and return a JSON object with these keys:
+- headline (string, one sentence summary like "Your sleep quality averages 6.2/10 — caffeine timing is the biggest factor")
+- avgDuration (string, e.g. "6h 45m average")
+- avgQuality (string, e.g. "6.2/10 average")
+- optimalBedtime (string, e.g. "10:30 PM" based on patterns, or null if insufficient data)
+- optimalWakeTime (string, e.g. "6:30 AM" or null)
+- factors (array of objects, each with: factor (string), impact ("negative" | "positive" | "mixed"), detail (string, specific observation with numbers/dates))
+- recommendations (array of 3-5 short actionable strings)
+- trend (string: "improving" | "declining" | "stable" | "variable" | "insufficient data")
+
+Find correlations between: caffeine timing, alcohol use, late workouts, stress scores and next-night sleep quality.
+
+Sleep logs (last 30): ${JSON.stringify((sleep || []).slice(-30).map(s => ({ date: s.date, bedtime: s.bedtime, waketime: s.waketime, durationMins: s.durationMins, quality: s.quality, notes: s.notes })))}
+Check-ins (last 30): ${JSON.stringify((checkins || []).slice(-30).map(c => ({ date: c.date, stress: c.stress, energy: c.energy })))}
+Substances (last 30): ${JSON.stringify((substances || []).slice(-30).map(s => ({ date: s.date, subType: s.subType, time: s.time, amount: s.amount, source: s.source })))}
+Workouts (last 30): ${JSON.stringify((workouts || []).slice(-30).map(w => ({ date: w.date, type: w.type, durationMins: w.durationMins })))}`,
+      },
+    ], { temperature: 0.3 });
+    res.json(result);
+  } catch (err) {
+    console.error('/api/ai/sleep/analyze error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Analyze daily check-in scores and recent history → personalized insights
+app.post('/api/ai/checkin/insights', async (req, res) => {
+  if (!requireOpenAI(res)) return;
+  try {
+    const { checkin, recentCheckins, recentSleep, recentWorkouts, recentSubstances } = req.body;
+    const result = await askGPT([
+      {
+        role: 'system',
+        content: 'You are a practical health coach. Respond with valid JSON only. Be direct and specific — avoid generic advice.',
+      },
+      {
+        role: 'user',
+        content: `Analyze today's check-in scores and recent history. Return a JSON object with these keys:
+- headline (string, one punchy sentence summarizing today's state, e.g. "High stress + low energy — prioritize recovery today")
+- insights (array of 2-4 short strings, specific observations comparing today to recent trends)
+- actionForToday (string, one clear, specific action recommendation for today)
+- trendAlert (string or null, flag if there's a concerning multi-day pattern — null if things look fine)
+- restDayRecommended (boolean)
+
+Today's check-in: ${JSON.stringify(checkin)}
+Last 14 check-ins: ${JSON.stringify((recentCheckins || []).slice(-14))}
+Last 7 sleep logs: ${JSON.stringify((recentSleep || []).slice(-7).map(s => ({ date: s.date, hours: s.hours, quality: s.quality })))}
+Last 7 workouts: ${JSON.stringify((recentWorkouts || []).slice(-7).map(w => ({ date: w.date, type: w.type, duration: w.duration })))}
+Recent substances: ${JSON.stringify((recentSubstances || []).slice(-14).map(s => ({ date: s.date, subType: s.subType, amount: s.amount, unit: s.unit })))}`,
+      },
+    ], { temperature: 0.3 });
+    res.json(result);
+  } catch (err) {
+    console.error('/api/ai/checkin/insights error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Analyze substance use correlations with sleep, recovery, and workout performance
+app.post('/api/ai/substance/correlations', async (req, res) => {
+  if (!requireOpenAI(res)) return;
+  try {
+    const { substances, sleep, checkins, workouts, recovery } = req.body;
+    if (!substances?.length) {
+      return res.json({ summary: 'Not enough substance data to analyze.', correlations: [], recommendations: [] });
+    }
+    const result = await askGPT([
+      {
+        role: 'system',
+        content: 'You are a health data analyst focused on substance-health correlations. Respond with valid JSON only. Be specific with numbers and dates when available.',
+      },
+      {
+        role: 'user',
+        content: `Analyze how substance use correlates with health metrics. Return a JSON object with these keys:
+- summary (string, 2-3 sentence overall assessment)
+- correlations (array of objects, each with: substance (string, "alcohol" or "weed"), metric (string, e.g. "sleep quality"), impact (string: "positive" | "negative" | "mixed" | "none"), direction (string, e.g. "lowers sleep quality by ~1.5 points on use nights"), detail (string, one specific observation with numbers if possible))
+- recommendations (array of 3-5 short actionable strings based on the patterns found)
+- dataQuality (string: "sufficient" | "limited" | "insufficient")
+
+Find genuine correlations between substance use days and: sleep quality/duration, next-day energy, mood, soreness, workout performance.
+
+Substance logs (last 60 days): ${JSON.stringify((substances || []).slice(-60).map(s => ({ date: s.date, subType: s.subType, type: s.type || s.method, amount: s.amount, unit: s.unit })))}
+Sleep logs (last 60 days): ${JSON.stringify((sleep || []).slice(-60).map(s => ({ date: s.date, hours: s.hours, quality: s.quality })))}
+Check-ins (last 60 days): ${JSON.stringify((checkins || []).slice(-60).map(c => ({ date: c.date, energy: c.energy, mood: c.mood, soreness: c.soreness, stress: c.stress })))}
+Workouts (last 60 days): ${JSON.stringify((workouts || []).slice(-60).map(w => ({ date: w.date, type: w.type, duration: w.duration })))}
+Recovery logs: ${JSON.stringify((recovery || []).slice(-30).map(r => ({ date: r.date, score: r.recoveryScore })))}`,
+      },
+    ], { temperature: 0.2 });
+    res.json(result);
+  } catch (err) {
+    console.error('/api/ai/substance/correlations error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Analyze a body photo with health context → AI body composition assessment
 app.post('/api/ai/body/analyze', async (req, res) => {
   if (!requireOpenAI(res)) return;
@@ -362,7 +480,7 @@ Return ONLY valid JSON, no markdown.`,
           },
           {
             type: 'image_url',
-            image_url: { url: image, detail: 'high' },
+            image_url: { url: image, detail: 'low' },
           },
         ],
       },

@@ -5,7 +5,7 @@ import { today, isoNow, formatDate, groupByDate } from '../../utils/dateUtils';
 import PhotoCapture from '../shared/PhotoCapture';
 import Modal from '../shared/Modal';
 import { analyzeNutritionPhoto } from '../../services/api';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 function MealEntryModal({ open, onClose, onSave }) {
   const [photo, setPhoto] = useState(null);
@@ -211,7 +211,12 @@ export default function NutritionLog() {
   const { state, dispatch } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [showCaffeineForm, setShowCaffeineForm] = useState(false);
+  const [showTargets, setShowTargets] = useState(false);
   const [tab, setTab] = useState('log');
+
+  // Local copy for editing targets
+  const targets = state.macroTargets || { calories: 0, protein: 0, carbs: 0, fats: 0 };
+  const [targetDraft, setTargetDraft] = useState(targets);
 
   function handleSave(meal) {
     dispatch({ type: ACTIONS.ADD_MEAL, payload: meal });
@@ -234,6 +239,17 @@ export default function NutritionLog() {
     });
   }
 
+  function saveTargets(e) {
+    e.preventDefault();
+    dispatch({ type: ACTIONS.UPDATE_MACRO_TARGETS, payload: {
+      calories: Number(targetDraft.calories) || 0,
+      protein: Number(targetDraft.protein) || 0,
+      carbs: Number(targetDraft.carbs) || 0,
+      fats: Number(targetDraft.fats) || 0,
+    }});
+    setShowTargets(false);
+  }
+
   // Weekly summary
   const grouped = groupByDate([...state.meals], 'date');
   const weeklyData = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).slice(-7).map(([date, meals]) => ({
@@ -254,13 +270,55 @@ export default function NutritionLog() {
     <div>
       <h1 className="section-title">Nutrition Log</h1>
 
-      <div className="flex gap-2 mb-5">
+      <div className="flex gap-2 mb-5 flex-wrap">
         {[['log', '🥗 Log'], ['summary', '📊 Weekly']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)} className={`px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${tab === key ? 'bg-brand-600 text-white' : 'bg-surface-700 text-slate-300'}`}>{label}</button>
         ))}
-        <button onClick={() => setShowCaffeineForm(true)} className="btn-secondary ml-auto text-sm py-2">+ Log Caffeine</button>
+        <button onClick={() => { setTargetDraft(targets); setShowTargets(true); }} className="btn-secondary ml-auto text-sm py-2">🎯 Targets</button>
+        <button onClick={() => setShowCaffeineForm(true)} className="btn-secondary text-sm py-2">+ Log Caffeine</button>
         <button onClick={() => setShowForm(true)} className="btn-primary text-sm py-2">+ Log Meal</button>
       </div>
+
+      {/* Targets summary strip */}
+      {(targets.calories > 0 || targets.protein > 0) && (() => {
+        const todayMeals = (state.meals || []).filter(m => m.date === today());
+        const todayTotals = todayMeals.reduce((acc, m) => ({
+          calories: acc.calories + (m.macros?.calories || 0),
+          protein: acc.protein + (m.macros?.protein || 0),
+          carbs: acc.carbs + (m.macros?.carbs || 0),
+          fats: acc.fats + (m.macros?.fats || 0),
+        }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+        return (
+          <div className="card mb-5">
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-400 mb-3">Today's Targets</p>
+            <div className="space-y-2">
+              {[
+                { key: 'calories', label: 'Calories', unit: 'kcal', color: 'bg-yellow-500' },
+                { key: 'protein', label: 'Protein', unit: 'g', color: 'bg-blue-500' },
+                { key: 'carbs', label: 'Carbs', unit: 'g', color: 'bg-orange-500' },
+                { key: 'fats', label: 'Fats', unit: 'g', color: 'bg-pink-500' },
+              ].filter(m => targets[m.key] > 0).map(({ key, label, unit, color }) => {
+                const pct = Math.min(100, Math.round((todayTotals[key] / targets[key]) * 100));
+                const over = todayTotals[key] > targets[key];
+                return (
+                  <div key={key}>
+                    <div className="flex justify-between text-xs text-slate-400 mb-1">
+                      <span>{label}</span>
+                      <span className={over ? 'text-red-400 font-semibold' : 'text-slate-300'}>
+                        {todayTotals[key]}{unit} / {targets[key]}{unit}
+                        {over && ' ⚠️'}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-surface-700 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${over ? 'bg-red-500' : color}`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {tab === 'log' && (
         <div>
@@ -376,6 +434,7 @@ export default function NutritionLog() {
                     <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} />
                     <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
                     <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 12 }} />
+                    {targets.calories > 0 && <ReferenceLine y={targets.calories} stroke="#f59e0b" strokeDasharray="4 2" label={{ value: 'Target', fill: '#f59e0b', fontSize: 10 }} />}
                     <Bar dataKey="calories" name="Calories" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -389,6 +448,7 @@ export default function NutritionLog() {
                     <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
                     <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 12 }} />
                     <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
+                    {targets.protein > 0 && <ReferenceLine y={targets.protein} stroke="#38bdf8" strokeDasharray="4 2" />}
                     <Bar dataKey="protein" name="Protein (g)" fill="#38bdf8" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="carbs" name="Carbs (g)" fill="#fb923c" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="fats" name="Fats (g)" fill="#f472b6" radius={[4, 4, 0, 0]} />
@@ -402,6 +462,29 @@ export default function NutritionLog() {
 
       <CaffeineModal open={showCaffeineForm} onClose={() => setShowCaffeineForm(false)} onSave={handleAddCaffeine} />
       <MealEntryModal open={showForm} onClose={() => setShowForm(false)} onSave={handleSave} />
+
+      {/* Macro Targets Modal */}
+      <Modal open={showTargets} onClose={() => setShowTargets(false)} title="🎯 Daily Macro Targets">
+        <form onSubmit={saveTargets} className="space-y-4">
+          <p className="text-sm text-slate-400">Set your daily nutrition targets. Progress bars and chart reference lines will update automatically.</p>
+          <div className="grid grid-cols-2 gap-3">
+            {[['calories', 'Calories (kcal)'], ['protein', 'Protein (g)'], ['carbs', 'Carbs (g)'], ['fats', 'Fats (g)']].map(([k, l]) => (
+              <div key={k}>
+                <label className="label">{l}</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="input"
+                  placeholder="0 = no target"
+                  value={targetDraft[k] || ''}
+                  onChange={e => setTargetDraft(d => ({ ...d, [k]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+          <button type="submit" className="btn-primary w-full">Save Targets</button>
+        </form>
+      </Modal>
     </div>
   );
 }

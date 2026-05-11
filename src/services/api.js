@@ -84,6 +84,51 @@ export async function estimateBodyComposition(photoIds, measurements) {
 }
 
 /**
+ * Analyze sleep patterns and lifestyle correlations.
+ * @param {object} appState
+ * @returns {{ headline, avgDuration, avgQuality, optimalBedtime, optimalWakeTime, factors, recommendations, trend }}
+ */
+export async function analyzeSleep(appState) {
+  return post('/api/ai/sleep/analyze', {
+    sleep: appState.sleep,
+    checkins: appState.checkins,
+    substances: appState.substances,
+    workouts: appState.workouts,
+  });
+}
+
+/**
+ * Get AI insights on today's check-in scores compared to recent trends.
+ * @param {object} checkin – today's scores
+ * @param {object} appState – full state for context
+ * @returns {{ headline:string, insights:string[], actionForToday:string, trendAlert:string|null, restDayRecommended:boolean }}
+ */
+export async function getCheckinInsights(checkin, appState) {
+  return post('/api/ai/checkin/insights', {
+    checkin,
+    recentCheckins: appState.checkins,
+    recentSleep: appState.sleep,
+    recentWorkouts: appState.workouts,
+    recentSubstances: appState.substances,
+  });
+}
+
+/**
+ * Analyze substance use correlations with sleep, recovery, and workout data.
+ * @param {object} appState – full state for context
+ * @returns {{ summary:string, correlations:object[], recommendations:string[], dataQuality:string }}
+ */
+export async function analyzeSubstanceCorrelations(appState) {
+  return post('/api/ai/substance/correlations', {
+    substances: appState.substances,
+    sleep: appState.sleep,
+    checkins: appState.checkins,
+    workouts: appState.workouts,
+    recovery: appState.recovery,
+  });
+}
+
+/**
  * Get an AI-personalized workout recommendation based on full app state.
  * @param {object} appState – full context (profile, checkins, sleep, injuries, workouts, stretchSessions)
  * @returns {{ shouldTrain, trainingType, routineName, routineIcon, timing, reasoning, intensity, estimatedDurationMins, exercises, warnings }}

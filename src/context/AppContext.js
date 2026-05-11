@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { loadState, saveState } from '../services/storage';
+import { isoNow } from '../utils/dateUtils';
 
 // ─── Initial State ────────────────────────────────────────────────────────────
 
@@ -20,6 +21,9 @@ const initialState = {
   medications: [],     // Medication definitions
   medicationLogs: [],  // Daily medication dose logs
   events: [],          // Generic event logs
+  macroTargets: { calories: 0, protein: 0, carbs: 0, fats: 0 }, // Daily nutrition targets
+  aiWorkoutRec: null,  // Cached AI workout recommendation
+  aiStretchRec: null,  // Cached AI stretch recommendation
 };
 
 // ─── Action Types ─────────────────────────────────────────────────────────────
@@ -72,6 +76,11 @@ export const ACTIONS = {
   DELETE_EVENT: 'DELETE_EVENT',
   // Profile
   UPDATE_PROFILE: 'UPDATE_PROFILE',
+  // Nutrition targets
+  UPDATE_MACRO_TARGETS: 'UPDATE_MACRO_TARGETS',
+  // AI recommendations (cached)
+  SET_AI_WORKOUT_REC: 'SET_AI_WORKOUT_REC',
+  SET_AI_STRETCH_REC: 'SET_AI_STRETCH_REC',
   // Hydration shorthand (weight/height within checkin or body log)
   LOAD_STATE: 'LOAD_STATE',
 };
@@ -118,7 +127,14 @@ function reducer(state, action) {
 
     // Water
     case ACTIONS.ADD_WATER:
-      return { ...state, water: addItem(state.water, action.payload) };
+      return {
+        ...state,
+        water: addItem(state.water, {
+          ...action.payload,
+          createdAt: action.payload?.createdAt || isoNow(),
+          date: action.payload?.date || (action.payload?.createdAt || isoNow()).slice(0, 10),
+        }),
+      };
     case ACTIONS.DELETE_WATER:
       return { ...state, water: removeItem(state.water, action.payload) };
     case ACTIONS.UPDATE_WATER_GOAL:
@@ -210,6 +226,16 @@ function reducer(state, action) {
     // Profile
     case ACTIONS.UPDATE_PROFILE:
       return { ...state, profile: action.payload };
+
+    // Nutrition macro targets
+    case ACTIONS.UPDATE_MACRO_TARGETS:
+      return { ...state, macroTargets: { ...state.macroTargets, ...action.payload } };
+
+    // AI recommendations
+    case ACTIONS.SET_AI_WORKOUT_REC:
+      return { ...state, aiWorkoutRec: action.payload };
+    case ACTIONS.SET_AI_STRETCH_REC:
+      return { ...state, aiStretchRec: action.payload };
 
     default:
       return state;

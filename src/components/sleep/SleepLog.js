@@ -6,6 +6,7 @@ import { today, isoNow, formatDate, minutesToHoursLabel } from '../../utils/date
 import { calculateSleepScore } from '../../utils/scores';
 import TrendChart from '../shared/TrendChart';
 import PhotoCapture from '../shared/PhotoCapture';
+import { analyzeSleep } from '../../services/api';
 
 export default function SleepLog() {
   const { state, dispatch } = useApp();
@@ -17,6 +18,10 @@ export default function SleepLog() {
   const [saved, setSaved] = useState(false);
   const [photoIds, setPhotoIds] = useState([]);
   const [photoPreviews, setPhotoPreviews] = useState([]);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   function handlePhotoCapture({ id, preview }) {
     setPhotoIds(prev => [...prev, id]);
@@ -58,6 +63,19 @@ export default function SleepLog() {
 
   function handleDelete(id) {
     dispatch({ type: ACTIONS.DELETE_SLEEP, payload: id });
+  }
+
+  async function handleAnalyzeSleep() {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const result = await analyzeSleep(state);
+      setAiAnalysis(result);
+      setShowAnalysis(true);
+    } catch (err) {
+      setAiError(err.message || 'Analysis failed');
+    }
+    setAiLoading(false);
   }
 
   // Chart data
@@ -126,6 +144,94 @@ export default function SleepLog() {
             data={chartData}
             series={[{ key: 'Hours', label: 'Hours Slept' }, { key: 'Quality', label: 'Quality' }]}
           />
+        </div>
+      )}
+
+      {/* AI Analysis */}
+      {state.sleep.length >= 3 && (
+        <div className="mb-6">
+          <button
+            onClick={handleAnalyzeSleep}
+            disabled={aiLoading}
+            className="btn-secondary w-full flex items-center justify-center gap-2 disabled:opacity-40"
+          >
+            {aiLoading ? <><span className="animate-spin">😴</span> Analyzing your sleep…</> : '🤖 AI Sleep Analysis'}
+          </button>
+          {aiError && <p className="text-sm text-red-400 mt-2 text-center">{aiError}</p>}
+        </div>
+      )}
+
+      {showAnalysis && aiAnalysis && (
+        <div className="card mb-6 space-y-4">
+          <div className="flex items-start justify-between">
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-400">AI Sleep Analysis</p>
+            <button onClick={() => setShowAnalysis(false)} className="text-slate-500 hover:text-slate-300 text-lg leading-none">×</button>
+          </div>
+
+          {/* Headline + stats */}
+          <div className="bg-surface-700 rounded-xl p-3">
+            <p className="font-bold text-slate-100 mb-2">{aiAnalysis.headline}</p>
+            <div className="flex flex-wrap gap-3 text-sm text-slate-400">
+              {aiAnalysis.avgDuration && <span>⏱ {aiAnalysis.avgDuration}</span>}
+              {aiAnalysis.avgQuality && <span>⭐ {aiAnalysis.avgQuality}</span>}
+              {aiAnalysis.trend && (
+                <span className={`font-semibold ${
+                  aiAnalysis.trend === 'improving' ? 'text-emerald-400' :
+                  aiAnalysis.trend === 'declining' ? 'text-red-400' : 'text-slate-300'
+                }`}>
+                  {aiAnalysis.trend === 'improving' ? '↗' : aiAnalysis.trend === 'declining' ? '↘' : '→'} {aiAnalysis.trend}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Optimal window */}
+          {(aiAnalysis.optimalBedtime || aiAnalysis.optimalWakeTime) && (
+            <div className="bg-brand-900/30 border border-brand-700/40 rounded-xl p-3">
+              <p className="text-xs font-bold text-brand-400 mb-1">Optimal Sleep Window</p>
+              <p className="text-sm text-slate-200">
+                {aiAnalysis.optimalBedtime && `Bedtime: ${aiAnalysis.optimalBedtime}`}
+                {aiAnalysis.optimalBedtime && aiAnalysis.optimalWakeTime && ' → '}
+                {aiAnalysis.optimalWakeTime && `Wake: ${aiAnalysis.optimalWakeTime}`}
+              </p>
+            </div>
+          )}
+
+          {/* Factors */}
+          {aiAnalysis.factors?.length > 0 && (
+            <div>
+              <p className="label mb-2">Factors Affecting Sleep</p>
+              <div className="space-y-2">
+                {aiAnalysis.factors.map((f, i) => (
+                  <div key={i} className="bg-surface-700 rounded-xl px-3 py-2">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        f.impact === 'negative' ? 'bg-red-900/50 text-red-300' :
+                        f.impact === 'positive' ? 'bg-emerald-900/50 text-emerald-300' :
+                        'bg-yellow-900/50 text-yellow-300'
+                      }`}>{f.impact}</span>
+                      <span className="text-sm font-semibold text-slate-200">{f.factor}</span>
+                    </div>
+                    <p className="text-xs text-slate-400">{f.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recommendations */}
+          {aiAnalysis.recommendations?.length > 0 && (
+            <div>
+              <p className="label mb-2">Recommendations</p>
+              <ul className="space-y-1.5">
+                {aiAnalysis.recommendations.map((r, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
+                    <span className="text-brand-400 mt-0.5 shrink-0">→</span>{r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

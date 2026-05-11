@@ -34,6 +34,7 @@ const NAV_GROUPS = [
       { to: '/injury', label: 'Injury', icon: '🩹' },
       { to: '/profile', label: 'Profile', icon: '👤' },
       { to: '/chat', label: 'Chat', icon: '💬' },
+      { to: '/export', label: 'Export', icon: '📤' },
     ],
   },
 ];

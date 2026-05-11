@@ -4,7 +4,7 @@ import { useApp, ACTIONS } from '../../context/AppContext';
 import { today, isoNow, formatDate } from '../../utils/dateUtils';
 import PhotoCapture from '../shared/PhotoCapture';
 import Modal from '../shared/Modal';
-import { analyzeBodyPhoto } from '../../services/api';
+import { analyzeBodyPhoto, estimateBodyComposition } from '../../services/api';
 
 const MEASUREMENTS = [
   { key: 'chest',    label: 'Chest (in)' },
@@ -42,6 +42,12 @@ export default function BodyComposition() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisError, setAnalysisError] = useState(null);
+
+  // AI Trend Estimate state
+  const [trendResult, setTrendResult] = useState(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState(null);
+  const [showTrend, setShowTrend] = useState(false);
 
   function handlePhoto({ id, preview }) {
     setForm(f => ({ ...f, photoIds: [...f.photoIds, id] }));
@@ -97,14 +103,68 @@ export default function BodyComposition() {
     setAnalysisError(null);
   }
 
+  async function handleEstimateTrend() {
+    setTrendLoading(true);
+    setTrendError(null);
+    try {
+      const result = await estimateBodyComposition([], state.bodyLogs);
+      setTrendResult(result);
+      setShowTrend(true);
+    } catch (err) {
+      setTrendError(err.message || 'Trend analysis failed');
+    }
+    setTrendLoading(false);
+  }
+
   return (
     <div>
       <h1 className="section-title">Body Composition</h1>
 
-      <div className="flex gap-3 mb-5">
+      <div className="flex gap-3 mb-5 flex-wrap">
         <button onClick={() => setShowForm(true)} className="btn-primary">+ Log Measurements</button>
         <button onClick={() => setShowAnalysis(true)} className="btn-secondary flex items-center gap-2">🤖 AI Photo Analysis</button>
+        {state.bodyLogs.length >= 2 && (
+          <button
+            onClick={handleEstimateTrend}
+            disabled={trendLoading}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-40"
+          >
+            {trendLoading ? '📈 Analyzing…' : '📈 AI Trend Analysis'}
+          </button>
+        )}
       </div>
+
+      {trendError && <p className="text-sm text-red-400 mb-4">{trendError}</p>}
+
+      {showTrend && trendResult && (
+        <div className="card mb-5 space-y-3">
+          <div className="flex items-start justify-between">
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-400">Measurement Trend Analysis</p>
+            <button onClick={() => setShowTrend(false)} className="text-slate-500 hover:text-slate-300 text-lg leading-none">×</button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-surface-700 rounded-xl p-3 text-center">
+              <p className={`text-lg font-bold ${(trendResult.muscleChangePct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {(trendResult.muscleChangePct || 0) >= 0 ? '+' : ''}{trendResult.muscleChangePct ?? '—'}%
+              </p>
+              <p className="text-xs text-slate-400">Muscle</p>
+            </div>
+            <div className="bg-surface-700 rounded-xl p-3 text-center">
+              <p className={`text-lg font-bold ${(trendResult.fatChangePct || 0) <= 0 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                {(trendResult.fatChangePct || 0) >= 0 ? '+' : ''}{trendResult.fatChangePct ?? '—'}%
+              </p>
+              <p className="text-xs text-slate-400">Fat</p>
+            </div>
+            <div className="bg-surface-700 rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-slate-100 capitalize">{trendResult.trend ?? '—'}</p>
+              <p className="text-xs text-slate-400">Trend</p>
+            </div>
+          </div>
+          {trendResult.notes && (
+            <p className="text-sm text-slate-300 bg-surface-700 rounded-xl px-3 py-2">{trendResult.notes}</p>
+          )}
+        </div>
+      )}
 
       {/* Logs list */}
       {state.bodyLogs.length === 0 ? (

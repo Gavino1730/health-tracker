@@ -16,6 +16,7 @@ import BodyComposition from './components/body/BodyComposition';
 import InjuryTracker from './components/injury/InjuryTracker';
 import Profile from './components/profile/Profile';
 import HealthChat from './components/chat/HealthChat';
+import DataExport from './components/export/DataExport';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
             <Route path="injury" element={<InjuryTracker />} />
             <Route path="profile" element={<Profile />} />
             <Route path="chat" element={<HealthChat />} />
+            <Route path="export" element={<DataExport />} />
           </Route>
         </Routes>
       </BrowserRouter>
