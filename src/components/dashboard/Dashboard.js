@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { today, formatDate, last7Days } from '../../utils/dateUtils';
@@ -54,7 +54,7 @@ export default function Dashboard() {
     (patternPayload.nutrition?.length || 0) +
     (patternPayload.substances?.length || 0) >= 3;
 
-  async function loadPatterns() {
+  const loadPatterns = useCallback(async () => {
     if (!hasPatternData) {
       setPatterns(null);
       setPatternsError('');
@@ -70,7 +70,7 @@ export default function Dashboard() {
       setPatternsError(err.message || 'Could not analyze patterns right now.');
     }
     setPatternsLoading(false);
-  }
+  }, [hasPatternData, patternPayload]);
 
   // Auto-detect patterns whenever relevant logs change.
   useEffect(() => {
@@ -78,7 +78,7 @@ export default function Dashboard() {
       loadPatterns();
     }, 500);
     return () => clearTimeout(timer);
-  }, [patternPayload]);
+  }, [patternPayload, loadPatterns]);
 
   // Chart data – last 7 days
   const days = last7Days();
