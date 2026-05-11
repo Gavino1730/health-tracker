@@ -15,6 +15,7 @@ import RecoveryDashboard from './components/recovery/RecoveryDashboard';
 import BodyComposition from './components/body/BodyComposition';
 import InjuryTracker from './components/injury/InjuryTracker';
 import SkiDayLog from './components/ski/SkiDayLog';
+import Profile from './components/profile/Profile';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
             <Route path="body" element={<BodyComposition />} />
             <Route path="injury" element={<InjuryTracker />} />
             <Route path="ski" element={<SkiDayLog />} />
+            <Route path="profile" element={<Profile />} />
           </Route>
         </Routes>
       </BrowserRouter>

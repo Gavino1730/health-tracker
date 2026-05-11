@@ -72,7 +72,9 @@ export default function Dashboard() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-100">Dashboard</h1>
+          <h1 className="text-2xl font-extrabold text-slate-100">
+            {state.profile?.name ? `Hey, ${state.profile.name.split(' ')[0]} 👋` : 'Dashboard'}
+          </h1>
           <p className="text-sm text-slate-400">{formatDate(todayStr, 'EEEE, MMMM d, yyyy')}</p>
         </div>
         <Link to="/checkin" className="btn-primary text-sm py-2">

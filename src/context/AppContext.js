@@ -4,6 +4,7 @@ import { loadState, saveState } from '../services/storage';
 // ─── Initial State ────────────────────────────────────────────────────────────
 
 const initialState = {
+  profile: null,       // User profile (name, dob, weight, height, health info, contacts)
   checkins: [],        // Daily check-ins (energy, mood, soreness, stress, clarity, caffeine, notes)
   sleep: [],           // Sleep logs
   water: [],           // Water intake logs
@@ -71,6 +72,8 @@ export const ACTIONS = {
   // Events
   ADD_EVENT: 'ADD_EVENT',
   DELETE_EVENT: 'DELETE_EVENT',
+  // Profile
+  UPDATE_PROFILE: 'UPDATE_PROFILE',
   // Hydration shorthand (weight/height within checkin or body log)
   LOAD_STATE: 'LOAD_STATE',
 };
@@ -209,6 +212,10 @@ function reducer(state, action) {
       return { ...state, events: addItem(state.events, action.payload) };
     case ACTIONS.DELETE_EVENT:
       return { ...state, events: removeItem(state.events, action.payload) };
+
+    // Profile
+    case ACTIONS.UPDATE_PROFILE:
+      return { ...state, profile: action.payload };
 
     default:
       return state;
