@@ -1,4 +1,4 @@
-# Vitality — Personal Health Tracker
+# Health Tracker
 
 A privacy-conscious personal health dashboard for recording routines, trends, and reflections, with optional AI-assisted summaries.
 
